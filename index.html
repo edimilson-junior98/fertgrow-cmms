@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FertGrow CMMS · Gestão da Manutenção</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=clash-grotesk@400,500,600,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="authScreen" class="hidden"></div>
+
+<div class="app" id="app">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-head">
+      <div class="brand">
+        <span class="brand-mark"><img src="assets/logo-icon.png" alt="FertGrow"></span>
+        <div class="brand-text">
+          <strong>FertGrow</strong>
+          <small>CMMS · PCM</small>
+        </div>
+      </div>
+      <button class="icon-btn" id="collapseBtn" title="Recolher menu">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M15 6L9 12L15 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+
+    <nav class="nav" id="nav">
+      <div class="nav-group-label">Visão Geral</div>
+      <a class="nav-item active" data-view="dashboard"><i data-ic="grid"></i><span>Dashboard</span></a>
+
+      <div class="nav-group-label">Cadastros</div>
+      <a class="nav-item" data-view="ativos"><i data-ic="box"></i><span>Ativos</span></a>
+      <a class="nav-item" data-view="estoque"><i data-ic="layers"></i><span>Estoque</span></a>
+      <a class="nav-item" data-view="servicos"><i data-ic="wrench"></i><span>Serviços</span></a>
+      <a class="nav-item" data-view="prestadores"><i data-ic="building"></i><span>Prestadores de Serviço</span></a>
+
+      <div class="nav-group-label">Controle</div>
+      <a class="nav-item" data-view="motores"><i data-ic="bolt"></i><span>Motores</span></a>
+      <a class="nav-item" data-view="locacoes"><i data-ic="truck"></i><span>Locações</span></a>
+
+      <div class="nav-group-label">Planejamento</div>
+      <a class="nav-item" data-view="semanas"><i data-ic="calendar"></i><span>Plano 52 Semanas</span></a>
+      <a class="nav-item" data-view="programacao"><i data-ic="clipboard"></i><span>Programação</span></a>
+      <a class="nav-item" data-view="solicitacoes"><i data-ic="mail"></i><span>Solicitações de Serviço</span></a>
+      <a class="nav-item" data-view="ordens"><i data-ic="clipboard"></i><span>Ordens de Serviço</span></a>
+      <a class="nav-item" data-view="lubrificacao"><i data-ic="drop"></i><span>Lubrificação</span></a>
+      <a class="nav-item" data-view="inspecoes"><i data-ic="check"></i><span>Inspeções</span></a>
+
+      <div class="nav-group-label">Análise</div>
+      <a class="nav-item" data-view="indicadores"><i data-ic="chart"></i><span>Indicadores</span></a>
+      <a class="nav-item" data-view="custos"><i data-ic="coin"></i><span>Custos</span></a>
+      <a class="nav-item" data-view="relatorios"><i data-ic="file"></i><span>Relatórios</span></a>
+
+      <div class="nav-group-label">Sistema</div>
+      <a class="nav-item" data-view="usuarios"><i data-ic="user"></i><span>Usuários</span></a>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="storage-badge" id="storageBadge">
+        <span class="dot"></span> Dados salvos localmente
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <header class="topbar">
+      <button class="icon-btn mobile-only" id="mobileMenuBtn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+
+      <div class="search-box">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4.3-4.3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <input type="text" id="globalSearch" placeholder="Buscar ativo, motor, TAG ou OS...">
+      </div>
+
+      <div class="topbar-actions">
+        <span class="breadcrumb" id="breadcrumb">Dashboard</span>
+        <button class="icon-btn" id="themeToggle" title="Alternar tema">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" id="themeIcon"><path d="M12 3v1M12 20v1M4.2 4.2l.7.7M19.1 19.1l.7.7M3 12h1M20 12h1M4.2 19.8l.7-.7M19.1 4.9l.7-.7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="2"/></svg>
+        </button>
+        <div class="profile-select">
+          <select id="profileSelect">
+            <option>Administrador</option>
+            <option>PCM</option>
+            <option>Supervisor</option>
+            <option>Mecânico</option>
+            <option>Eletricista</option>
+            <option>Operador</option>
+          </select>
+        </div>
+      </div>
+    </header>
+
+    <main class="content" id="content">
+      <!-- views injected here -->
+    </main>
+  </div>
+</div>
+
+<template id="tpl-modal">
+  <div class="modal-overlay">
+    <div class="modal">
+      <div class="modal-head">
+        <h3 class="modal-title"></h3>
+        <button class="icon-btn modal-close">✕</button>
+      </div>
+      <div class="modal-body"></div>
+    </div>
+  </div>
+</template>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+<script>
+  if (window.pdfjsLib) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+  }
+</script>
+<script src="js/icons.js"></script>
+<script src="js/store.js"></script>
+<script src="js/app.js"></script>
+<script src="js/dashboard.js"></script>
+<script src="js/melvinSync.js"></script>
+<script src="js/ativos.js"></script>
+<script src="js/motores.js"></script>
+<script src="js/estoque.js"></script>
+<script src="js/servicos.js"></script>
+<script src="js/locacoes.js"></script>
+<script src="js/prestadores.js"></script>
+<script src="js/solicitacoes.js"></script>
+<script src="js/ordens.js"></script>
+<script src="js/semanas.js"></script>
+<script src="js/programacao.js"></script>
+<script src="js/outros.js"></script>
+<script src="js/importacao.js"></script>
+<script src="js/sync.js"></script>
+<script src="js/auth.js"></script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+# Credenciais reais do Melvin — NUNCA deve ir para o GitHub, nem em repositório privado.
+melvin.secrets.json
+
+# Lixo comum de SO/editor
+.DS_Store
+Thumbs.db
+*.log
