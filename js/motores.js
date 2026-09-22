@@ -6,10 +6,33 @@
 // cabeçalho): lista de valores únicos com busca + ordenação A→Z / Z→A — mesmo padrão já
 // usado em Estoque (js/estoque.js). `valor(m)` é opcional — colunas sem ele usam m[key]
 // direto; colunas com valor computado (Equipamento, Potência, Depreciação etc.) precisam dele.
+// Um Motor e um Redutor que compartilham o mesmo Equipamento formam um
+// "Motorredutor" (conjunto) — não é um valor gravado no cadastro, é
+// calculado comparando com o restante da lista. Usado tanto no filtro da
+// coluna Tipo quanto no atalho rápido, pra dar pra filtrar só os conjuntos.
+// Espelha exatamente o pareamento feito na renderização da tabela (um Motor +
+// um Redutor por Equipamento — `.find()`, sempre os primeiros de cada tipo):
+// se o equipamento tiver motor/redutor sobrando (mais de um de cada), só o
+// par que realmente vira uma linha "Motorredutor" conta como tal; o resto
+// continua contando como Motor/Redutor avulso.
+function chaveEquipMotor(m) { return m.ativoId || (m.ativoTexto ? `txt:${m.ativoTexto}` : null); }
+function motorParPareado(m) {
+  const k = chaveEquipMotor(m);
+  if (!k) return null;
+  const doGrupo = Store.all('motores').filter(x => chaveEquipMotor(x) === k);
+  const motorDoGrupo = doGrupo.find(x => x.tipo !== 'Redutor');
+  const redutorDoGrupo = doGrupo.find(x => x.tipo === 'Redutor');
+  if (motorDoGrupo && redutorDoGrupo && (m.id === motorDoGrupo.id || m.id === redutorDoGrupo.id)) {
+    return { motor: motorDoGrupo, redutor: redutorDoGrupo };
+  }
+  return null;
+}
+function tipoEfetivoMotor(m) { return motorParPareado(m) ? 'Motorredutor' : (m.tipo || 'Motor'); }
+
 const MOTORES_COLS = [
   { key: 'tag', label: 'TAG' },
   { key: 'codigoInterno', label: 'Código Interno' },
-  { key: 'tipo', label: 'Tipo', valor: m => m.tipo || 'Motor' },
+  { key: 'tipo', label: 'Tipo', valor: m => tipoEfetivoMotor(m) },
   { key: 'equipamento', label: 'Equipamento', valor: m => motorAtivoNome(m) },
   { key: 'fabricanteModelo', label: 'Fabricante/Modelo', valor: m => `${m.fabricante || ''} · ${m.modelo || ''}` },
   { key: 'potencia', label: 'Potência', valor: m => m.tipo === 'Redutor' ? (m.relacaoReducao != null ? `${m.relacaoReducao}:1` : '') : (m.potenciaCV != null ? String(m.potenciaCV) : '') },
@@ -192,7 +215,7 @@ Views.motores = {
     // "Conjunto motorredutor" não é um tipo de registro — é só um Motor e um Redutor
     // compartilhando o mesmo Equipamento. Quando os dois existem pro mesmo Equipamento, a
     // tabela mostra UMA linha "Motorredutor" no lugar das duas; "Ver" abre os dois separados.
-    const chaveEquip = m => m.ativoId || (m.ativoTexto ? `txt:${m.ativoTexto}` : null);
+    const chaveEquip = chaveEquipMotor;
     const porEquip = new Map();
     motores.forEach(m => {
       const k = chaveEquip(m);
@@ -235,7 +258,8 @@ Views.motores = {
       </div>
 
       <div class="card" style="margin-bottom:16px;">
-        <div class="form-grid cols-3">
+        <div class="form-grid cols-4">
+          <div class="field"><label>Filtrar por Tipo</label><select id="fMotTipo"><option value="">Todos</option>${['Motor','Redutor','Motorredutor'].map(t => `<option ${valorUnicoFiltro('tipo')===t?'selected':''}>${t}</option>`).join('')}</select></div>
           <div class="field"><label>Filtrar por Local</label><select id="fMotLocal"><option value="">Todos</option>${locaisMotores.map(l => `<option ${valorUnicoFiltro('localAtual')===l?'selected':''}>${l}</option>`).join('')}</select></div>
           <div class="field"><label>Filtrar por Equipamento</label><select id="fMotEquipamento"><option value="">Todos</option>${equipamentosMotores.map(eq => `<option ${valorUnicoFiltro('equipamento')===eq?'selected':''}>${eq}</option>`).join('')}</select></div>
           <div class="field"><label>Filtrar por CV</label><select id="fMotCV"><option value="">Todos</option>${cvsMotores.map(cv => `<option value="${cv}" ${valorUnicoFiltro('potencia')===String(cv)?'selected':''}>${cv} CV</option>`).join('')}</select></div>
@@ -362,6 +386,7 @@ Views.motores = {
         App.navigate('motores', true);
       });
     }
+    ligarFiltroRapido('fMotTipo', 'tipo');
     ligarFiltroRapido('fMotLocal', 'localAtual');
     ligarFiltroRapido('fMotEquipamento', 'equipamento');
     ligarFiltroRapido('fMotCV', 'potencia');
