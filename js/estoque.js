@@ -114,7 +114,12 @@ Views.estoque = {
               ${itensExibidos.map(i => `
                 <tr class="${_estSelecionados.has(i.id) ? 'row-selected' : ''}">
                   <td><input type="checkbox" class="row-check" data-check-item="${i.id}" ${_estSelecionados.has(i.id) ? 'checked' : ''}></td>
-                  <td class="cell-tag">${i.codigo}</td>
+                  <td class="cell-tag">
+                    <span class="flex" style="gap:6px;align-items:center;">
+                      ${i.codigo}
+                      <button type="button" class="btn btn-sm" style="padding:3px 6px;" data-copiar-codigo="${escapeHtml(i.codigo)}" title="Copiar código">${Icon('clipboard', 12)}</button>
+                    </span>
+                  </td>
                   <td>${i.armazem || '—'}</td>
                   <td><strong>${i.descricao}</strong></td>
                   <td class="cell-tag">${i.grupo || '—'}</td>
@@ -166,6 +171,11 @@ Views.estoque = {
     document.querySelectorAll('[data-colfilter]').forEach(b => b.addEventListener('click', (e) => {
       e.stopPropagation();
       abrirPopoverFiltro(b.dataset.colfilter, b);
+    }));
+    document.querySelectorAll('[data-copiar-codigo]').forEach(b => b.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const ok = await copiarTextoSimples(b.dataset.copiarCodigo);
+      App.toast(ok ? `Código "${b.dataset.copiarCodigo}" copiado.` : 'Não foi possível copiar o código.', ok ? 'success' : 'danger');
     }));
     document.querySelectorAll('[data-edit-item]').forEach(b => b.addEventListener('click', () => abrirFormItem(b.dataset.editItem)));
     document.querySelectorAll('[data-del-item]').forEach(b => b.addEventListener('click', () => {
@@ -1134,6 +1144,25 @@ function selecionarConteudo(el) {
   const sel = window.getSelection();
   sel.removeAllRanges();
   sel.addRange(range);
+}
+
+// Copia um texto simples (ex: código do produto) para a área de
+// transferência — mesmo fallback via execCommand usado em copiarHtmlParaClipboard,
+// necessário porque o app roda em file:// (navigator.clipboard exige contexto seguro).
+async function copiarTextoSimples(texto) {
+  const temp = document.createElement('textarea');
+  temp.value = texto;
+  temp.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0;';
+  document.body.appendChild(temp);
+  temp.select();
+  let copiado = false;
+  try { copiado = document.execCommand('copy'); } catch (e) { copiado = false; }
+  document.body.removeChild(temp);
+
+  if (!copiado && navigator.clipboard && window.isSecureContext) {
+    try { await navigator.clipboard.writeText(texto); copiado = true; } catch (e) { copiado = false; }
+  }
+  return copiado;
 }
 
 // Copia HTML (com fallback em texto puro) para a área de transferência.
