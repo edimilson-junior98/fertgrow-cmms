@@ -107,11 +107,17 @@ const MelvinSync = (function () {
     return { ativosRemovidos: ativosAntigos.length, pastasRemovidas: pastasAntigas.length };
   }
 
-  async function sincronizarAtivos() {
-    const resp = await fetch(SYNC_URL);
-    const body = await resp.json();
-    if (!body.ok) throw new Error(body.erro || 'Falha desconhecida ao falar com o servidor de sincronização.');
-    const arvore = body.arvore;
+  // `arvorePreCarregada`: usado pela sincronização automática (GitHub Actions),
+  // que já chama o Melvin diretamente e não tem o servidor local disponível.
+  // Sem esse argumento, busca do jeito de sempre (servidor local).
+  async function sincronizarAtivos(arvorePreCarregada) {
+    let arvore = arvorePreCarregada;
+    if (!arvore) {
+      const resp = await fetch(SYNC_URL);
+      const body = await resp.json();
+      if (!body.ok) throw new Error(body.erro || 'Falha desconhecida ao falar com o servidor de sincronização.');
+      arvore = body.arvore;
+    }
     const contadores = { pastasCriadas: 0, ativosCriados: 0, ativosAtualizados: 0 };
 
     (arvore.filiais || []).forEach((filial) => {
@@ -226,12 +232,16 @@ const MelvinSync = (function () {
     return antigas.length;
   }
 
-  async function sincronizarOrdens() {
-    const resp = await fetch(SYNC_URL_ORDENS);
-    const body = await resp.json();
-    if (!body.ok) throw new Error(body.erro || 'Falha desconhecida ao buscar ordens de serviço do Melvin.');
+  async function sincronizarOrdens(ordensPreCarregadas) {
+    let ordens = ordensPreCarregadas;
+    if (!ordens) {
+      const resp = await fetch(SYNC_URL_ORDENS);
+      const body = await resp.json();
+      if (!body.ok) throw new Error(body.erro || 'Falha desconhecida ao buscar ordens de serviço do Melvin.');
+      ordens = body.ordens;
+    }
     const contadores = { ordensCriadas: 0, ordensAtualizadas: 0 };
-    (body.ordens || []).forEach((os) => acharOuCriarOrdem(os, contadores));
+    (ordens || []).forEach((os) => acharOuCriarOrdem(os, contadores));
     Store.persist();
     return contadores;
   }
@@ -292,12 +302,16 @@ const MelvinSync = (function () {
     return antigas.length;
   }
 
-  async function sincronizarSolicitacoes() {
-    const resp = await fetch(SYNC_URL_SOLICITACOES);
-    const body = await resp.json();
-    if (!body.ok) throw new Error(body.erro || 'Falha desconhecida ao buscar solicitações de serviço do Melvin.');
+  async function sincronizarSolicitacoes(solicitacoesPreCarregadas) {
+    let solicitacoes = solicitacoesPreCarregadas;
+    if (!solicitacoes) {
+      const resp = await fetch(SYNC_URL_SOLICITACOES);
+      const body = await resp.json();
+      if (!body.ok) throw new Error(body.erro || 'Falha desconhecida ao buscar solicitações de serviço do Melvin.');
+      solicitacoes = body.solicitacoes;
+    }
     const contadores = { criadas: 0, atualizadas: 0 };
-    (body.solicitacoes || []).forEach((s) => acharOuCriarSolicitacao(s, contadores));
+    (solicitacoes || []).forEach((s) => acharOuCriarSolicitacao(s, contadores));
     Store.persist();
     return contadores;
   }
@@ -384,16 +398,20 @@ const MelvinSync = (function () {
     return antigos.length;
   }
 
-  async function sincronizarPlanos() {
-    const resp = await fetch(SYNC_URL_PLANOS);
-    const body = await resp.json();
-    if (!body.ok) throw new Error(body.erro || 'Falha desconhecida ao buscar planos preventivos do Melvin.');
+  async function sincronizarPlanos(planosPreCarregados) {
+    let planos = planosPreCarregados;
+    if (!planos) {
+      const resp = await fetch(SYNC_URL_PLANOS);
+      const body = await resp.json();
+      if (!body.ok) throw new Error(body.erro || 'Falha desconhecida ao buscar planos preventivos do Melvin.');
+      planos = body.planos;
+    }
     const contadores = { criados: 0, atualizados: 0 };
-    (body.planos || []).forEach((p) => acharOuCriarPlano(p, contadores));
+    (planos || []).forEach((p) => acharOuCriarPlano(p, contadores));
     // Planos que estavam sincronizados mas não voltaram desta vez já foram
     // encerrados/desativados no Melvin (a busca só traz os "iniciados") —
     // remove pra a lista não ficar com plano que não está mais ativo.
-    const idsAtuais = new Set((body.planos || []).map(p => p.id));
+    const idsAtuais = new Set((planos || []).map(p => p.id));
     const encerrados = Store.all('planosPreventivos').filter(x => x.melvinId && !idsAtuais.has(x.melvinId));
     if (encerrados.length) Store.removerEmLote('planosPreventivos', encerrados.map(x => x.id));
     Store.persist();
@@ -407,3 +425,8 @@ const MelvinSync = (function () {
     sincronizarPlanos, removerPlanosSemMelvinId,
   };
 })();
+
+// Permite `require('./js/melvinSync.js')` a partir de um script Node (a
+// sincronização automática agendada no GitHub Actions) — no navegador,
+// `module` não existe, então esta linha não faz nada.
+if (typeof module !== 'undefined' && module.exports) module.exports = MelvinSync;

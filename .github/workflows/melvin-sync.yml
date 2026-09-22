@@ -1,0 +1,22 @@
+name: Sincronizar dados do Melvin
+
+on:
+  schedule:
+    - cron: '0 * * * *' # a cada hora, em ponto (horário UTC)
+  workflow_dispatch: {} # permite rodar manualmente pela aba Actions
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Sincronizar Melvin -> Supabase
+        env:
+          MELVIN_EMAIL: ${{ secrets.MELVIN_EMAIL }}
+          MELVIN_PASSWORD: ${{ secrets.MELVIN_PASSWORD }}
+        run: node scripts/sync-melvin-cloud.js
