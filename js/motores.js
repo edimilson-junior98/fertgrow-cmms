@@ -10,20 +10,21 @@
 // "Motorredutor" (conjunto) — não é um valor gravado no cadastro, é
 // calculado comparando com o restante da lista. Usado tanto no filtro da
 // coluna Tipo quanto no atalho rápido, pra dar pra filtrar só os conjuntos.
-// Espelha exatamente o pareamento feito na renderização da tabela (um Motor +
-// um Redutor por Equipamento — `.find()`, sempre os primeiros de cada tipo):
-// se o equipamento tiver motor/redutor sobrando (mais de um de cada), só o
-// par que realmente vira uma linha "Motorredutor" conta como tal; o resto
-// continua contando como Motor/Redutor avulso.
+// Só pareia quando o equipamento tem EXATAMENTE um Motor e um Redutor — se
+// houver mais de um de qualquer um dos dois (ex: um motor reserva também
+// vinculado ao mesmo equipamento), não dá pra saber com certeza qual motor
+// forma o par com qual redutor, então NENHUM dos dois é agrupado (todos
+// aparecem avulsos). Isso evita o bug de um registro "sumir" da tabela por
+// ter sido escondido dentro de um par errado escolhido arbitrariamente.
 function chaveEquipMotor(m) { return m.ativoId || (m.ativoTexto ? `txt:${m.ativoTexto}` : null); }
 function motorParPareado(m) {
   const k = chaveEquipMotor(m);
   if (!k) return null;
   const doGrupo = Store.all('motores').filter(x => chaveEquipMotor(x) === k);
-  const motorDoGrupo = doGrupo.find(x => x.tipo !== 'Redutor');
-  const redutorDoGrupo = doGrupo.find(x => x.tipo === 'Redutor');
-  if (motorDoGrupo && redutorDoGrupo && (m.id === motorDoGrupo.id || m.id === redutorDoGrupo.id)) {
-    return { motor: motorDoGrupo, redutor: redutorDoGrupo };
+  const motoresDoGrupo = doGrupo.filter(x => x.tipo !== 'Redutor');
+  const redutoresDoGrupo = doGrupo.filter(x => x.tipo === 'Redutor');
+  if (motoresDoGrupo.length === 1 && redutoresDoGrupo.length === 1) {
+    return { motor: motoresDoGrupo[0], redutor: redutoresDoGrupo[0] };
   }
   return null;
 }
@@ -229,8 +230,15 @@ Views.motores = {
       if (jaListado.has(m.id)) return;
       const k = chaveEquip(m);
       const grupo = k ? (porEquip.get(k) || []) : [];
-      const motorDoGrupo = grupo.find(x => x.tipo !== 'Redutor');
-      const redutorDoGrupo = grupo.find(x => x.tipo === 'Redutor');
+      // Só forma o par quando há exatamente 1 Motor + 1 Redutor visíveis neste
+      // equipamento (mesma regra de motorParPareado, mas sobre a lista já
+      // filtrada) — com mais de um de qualquer um dos dois, não dá pra saber
+      // qual é o par certo, então nenhum vira "Motorredutor" (evita esconder
+      // um registro dentro de um par escolhido arbitrariamente).
+      const motoresDoGrupo = grupo.filter(x => x.tipo !== 'Redutor');
+      const redutoresDoGrupo = grupo.filter(x => x.tipo === 'Redutor');
+      const motorDoGrupo = motoresDoGrupo.length === 1 ? motoresDoGrupo[0] : null;
+      const redutorDoGrupo = redutoresDoGrupo.length === 1 ? redutoresDoGrupo[0] : null;
       if (motorDoGrupo && redutorDoGrupo && !jaListado.has(motorDoGrupo.id) && !jaListado.has(redutorDoGrupo.id)) {
         jaListado.add(motorDoGrupo.id); jaListado.add(redutorDoGrupo.id);
         linhasTabela.push({ conjunto: true, motor: motorDoGrupo, redutor: redutorDoGrupo });
@@ -539,7 +547,22 @@ function abrirFormMotor(id, dadosClone) {
       torqueSaidaNm: tipo !== 'Motor' && val('mRedTorque') ? Number(val('mRedTorque')) : null,
       documentos: docsTemp,
     };
-    if (motor) { Store.update('motores', motor.id, data); App.toast('Motor atualizado.', 'success'); }
+    if (motor) {
+      // Se este registro faz parte de um conjunto Motorredutor e o Equipamento
+      // mudou aqui, move o parceiro (motor ou redutor) junto — senão o par
+      // fica com ativoId/ativoTexto diferentes, o pareamento quebra e o
+      // "Motorredutor" combinado some da tabela (vira dois avulsos soltos).
+      const equipMudou = (data.ativoId || null) !== (motor.ativoId || null) || (data.ativoTexto || '') !== (motor.ativoTexto || '');
+      const par = equipMudou ? motorParPareado(motor) : null; // captura o par ANTES de atualizar
+      const parceiro = par ? (par.motor.id === motor.id ? par.redutor : par.motor) : null;
+      Store.update('motores', motor.id, data);
+      if (parceiro) {
+        Store.update('motores', parceiro.id, { ativoId: data.ativoId, ativoTexto: data.ativoTexto });
+        App.toast(`Motor atualizado — o ${parceiro.tipo === 'Redutor' ? 'redutor' : 'motor'} ${parceiro.tag} do mesmo conjunto foi movido junto, pra manter o motorredutor.`, 'success');
+      } else {
+        App.toast('Motor atualizado.', 'success');
+      }
+    }
     else { Store.add('motores', { ...data, historicoTrocas: [], manutencoes: [] }); App.toast(modoClone ? 'Motor duplicado com sucesso.' : 'Motor cadastrado.', 'success'); }
     App.closeModal();
   };
@@ -854,7 +877,10 @@ function abrirTrocaMotor(id) {
 // Move o motor pra outro Ativo (equipamento/conjunto). Se outro motor já ocupar o mesmo
 // Ativo, ele é automaticamente desvinculado (fica "Reserva") — nunca mexe em
 // manutencoes/manutencaoExterna/historicoManutencaoExterna de nenhum dos dois motores.
-function motMoverParaAtivo(m, alvo, ocupante) {
+// `parceiro`: se `m` faz parte de um conjunto Motorredutor, é o motor/redutor
+// que forma o par com ele — move junto, senão o par ficaria em equipamentos
+// diferentes e o "Motorredutor" combinado sumiria da tabela.
+function motMoverParaAtivo(m, alvo, ocupante, parceiro) {
   const hoje = new Date().toISOString().slice(0, 10);
   const localAnterior = m.ativoTexto || Store.ativoNome(m.ativoId) || 'Sem equipamento';
   Store.update('motores', m.id, {
@@ -865,6 +891,17 @@ function motMoverParaAtivo(m, alvo, ocupante) {
       motivo: 'Movido para outro equipamento/conjunto', os: '-',
     }],
   });
+  if (parceiro && (!ocupante || parceiro.id !== ocupante.id)) {
+    const localAnteriorParceiro = parceiro.ativoTexto || Store.ativoNome(parceiro.ativoId) || 'Sem equipamento';
+    Store.update('motores', parceiro.id, {
+      ativoId: alvo.id,
+      ativoTexto: '',
+      historicoTrocas: [...parceiro.historicoTrocas, {
+        data: hoje, de: localAnteriorParceiro, para: alvo.nome,
+        motivo: `Movido junto com ${m.tag} para manter o conjunto motorredutor`, os: '-',
+      }],
+    });
+  }
   if (ocupante) {
     Store.update('motores', ocupante.id, {
       ativoId: null,
@@ -882,6 +919,10 @@ function abrirMoverMotor(id) {
   const m = Store.get('motores', id);
   const ativos = Store.all('ativos');
   const equipamentoAtual = m.ativoTexto || Store.ativoNome(m.ativoId);
+  // Se `m` faz parte de um conjunto Motorredutor, captura o parceiro AGORA
+  // (equipamento atual) pra mover os dois juntos — ver motMoverParaAtivo.
+  const parAtual = motorParPareado(m);
+  const parceiro = parAtual ? (parAtual.motor.id === m.id ? parAtual.redutor : parAtual.motor) : null;
   const body = document.createElement('div');
   body.innerHTML = `
     <p class="text-muted" style="font-size:13px;margin-bottom:14px;">
@@ -912,8 +953,10 @@ function abrirMoverMotor(id) {
       (o.ativoTexto && [alvo.nome, alvo.tag, `${alvo.tag} — ${alvo.nome}`].includes(o.ativoTexto))
     ));
     if (!ocupante) {
-      motMoverParaAtivo(m, alvo);
-      App.toast(`Motor movido para ${alvo.nome}.`, 'success');
+      motMoverParaAtivo(m, alvo, null, parceiro);
+      App.toast(parceiro
+        ? `${m.tag} e o ${parceiro.tipo === 'Redutor' ? 'redutor' : 'motor'} ${parceiro.tag} (mesmo conjunto) movidos para ${alvo.nome}.`
+        : `Motor movido para ${alvo.nome}.`, 'success');
       App.closeModal();
       return;
     }
@@ -924,7 +967,7 @@ function abrirMoverMotor(id) {
     renderIcons();
     document.getElementById('cancelSub').onclick = App.closeModal;
     document.getElementById('confirmSub').onclick = () => {
-      motMoverParaAtivo(m, alvo, ocupante);
+      motMoverParaAtivo(m, alvo, ocupante, parceiro);
       App.toast(`${m.tag} movido para ${alvo.nome} — ${ocupante.tag} removido do conjunto.`, 'success');
       App.closeModal();
     };
