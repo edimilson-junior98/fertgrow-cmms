@@ -35,6 +35,7 @@ const MOTORES_COLS = [
   { key: 'codigoInterno', label: 'Código Interno' },
   { key: 'tipo', label: 'Tipo', valor: m => tipoEfetivoMotor(m) },
   { key: 'equipamento', label: 'Equipamento', valor: m => motorAtivoNome(m) },
+  { key: 'setor', label: 'Setor', valor: m => motorSetorNome(m) || '—' },
   { key: 'fabricanteModelo', label: 'Fabricante/Modelo', valor: m => `${m.fabricante || ''} · ${m.modelo || ''}` },
   { key: 'potencia', label: 'Potência', valor: m => m.tipo === 'Redutor' ? (m.relacaoReducao != null ? `${m.relacaoReducao}:1` : '') : (m.potenciaCV != null ? String(m.potenciaCV) : '') },
   { key: 'status', label: 'Status' },
@@ -208,6 +209,7 @@ Views.motores = {
 
     // Atalhos rápidos pros filtros mais usados — atuam sobre o mesmo _motFiltros do funil
     // de coluna (linkados: escolher aqui equivale a marcar só aquele valor lá).
+    const setoresMotores = [...new Set(motoresTodos.map(m => motorSetorNome(m)).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt'));
     const locaisMotores = [...new Set(motoresTodos.map(m => m.localAtual).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt'));
     const equipamentosMotores = [...new Set(motoresTodos.map(m => motorAtivoNome(m)).filter(v => v && v !== '—'))].sort((a, b) => a.localeCompare(b, 'pt'));
     const cvsMotores = [...new Set(motoresTodos.map(m => m.potenciaCV).filter(cv => cv !== null && cv !== undefined))].sort((a, b) => a - b);
@@ -266,8 +268,9 @@ Views.motores = {
       </div>
 
       <div class="card" style="margin-bottom:16px;">
-        <div class="form-grid cols-4">
+        <div class="form-grid cols-auto">
           <div class="field"><label>Filtrar por Tipo</label><select id="fMotTipo"><option value="">Todos</option>${['Motor','Redutor','Motorredutor'].map(t => `<option ${valorUnicoFiltro('tipo')===t?'selected':''}>${t}</option>`).join('')}</select></div>
+          <div class="field"><label>Filtrar por Setor</label><select id="fMotSetor"><option value="">Todos</option>${setoresMotores.map(s => `<option ${valorUnicoFiltro('setor')===s?'selected':''}>${s}</option>`).join('')}</select></div>
           <div class="field"><label>Filtrar por Local</label><select id="fMotLocal"><option value="">Todos</option>${locaisMotores.map(l => `<option ${valorUnicoFiltro('localAtual')===l?'selected':''}>${l}</option>`).join('')}</select></div>
           <div class="field"><label>Filtrar por Equipamento</label><select id="fMotEquipamento"><option value="">Todos</option>${equipamentosMotores.map(eq => `<option ${valorUnicoFiltro('equipamento')===eq?'selected':''}>${eq}</option>`).join('')}</select></div>
           <div class="field"><label>Filtrar por CV</label><select id="fMotCV"><option value="">Todos</option>${cvsMotores.map(cv => `<option value="${cv}" ${valorUnicoFiltro('potencia')===String(cv)?'selected':''}>${cv} CV</option>`).join('')}</select></div>
@@ -319,6 +322,7 @@ Views.motores = {
                 <td class="cell-tag">${motor.codigoInterno || '—'}</td>
                 <td><span class="badge badge-success">Motorredutor</span></td>
                 <td>${motorAtivoNome(motor)}</td>
+                <td>${motorSetorNome(motor) || '—'}</td>
                 <td>${motor.fabricante} · ${motor.modelo}</td>
                 <td>${motor.potenciaCV} CV · ${redutor.relacaoReducao ? redutor.relacaoReducao + ':1' : '—'}</td>
                 <td>${motor.status === redutor.status ? `<span class="badge badge-${App.badgeForStatus(motor.status)}">${motor.status}</span>` : `<span class="badge badge-${App.badgeForStatus(motor.status)}">${motor.status}</span> <span class="badge badge-${App.badgeForStatus(redutor.status)}">${redutor.status}</span>`}</td>
@@ -339,6 +343,7 @@ Views.motores = {
                 <td class="cell-tag">${m.codigoInterno || '—'}</td>
                 <td><span class="badge badge-${badgeTipo(m.tipo)}">${m.tipo || 'Motor'}</span></td>
                 <td>${motorAtivoNome(m)}</td>
+                <td>${motorSetorNome(m) || '—'}</td>
                 <td>${m.fabricante} · ${m.modelo}</td>
                 <td>${m.tipo === 'Redutor' ? (m.relacaoReducao ? `${m.relacaoReducao}:1` : '—') : `${m.potenciaCV} CV · ${m.rpm} RPM`}</td>
                 <td><span class="badge badge-${App.badgeForStatus(m.status)}">${m.status}</span></td>
@@ -354,7 +359,7 @@ Views.motores = {
                   <button class="btn btn-sm" data-mover-motor="${m.id}" title="Mover para outro equipamento">${Icon('arrow-right',14)}</button>
                   <button class="btn btn-sm btn-danger" data-del-motor="${m.id}" title="Excluir">${Icon('trash',14)}</button>
                 </div></td>
-              </tr>`; }).join('') || `<tr><td colspan="11"><div class="empty">${Icon('bolt',30)}<span>${motoresTodos.length ? 'Nenhum motor encontrado com os filtros atuais.' : 'Nenhum motor cadastrado.'}</span></div></td></tr>`}
+              </tr>`; }).join('') || `<tr><td colspan="12"><div class="empty">${Icon('bolt',30)}<span>${motoresTodos.length ? 'Nenhum motor encontrado com os filtros atuais.' : 'Nenhum motor cadastrado.'}</span></div></td></tr>`}
           </tbody>
         </table>
       </div>
@@ -395,6 +400,7 @@ Views.motores = {
       });
     }
     ligarFiltroRapido('fMotTipo', 'tipo');
+    ligarFiltroRapido('fMotSetor', 'setor');
     ligarFiltroRapido('fMotLocal', 'localAtual');
     ligarFiltroRapido('fMotEquipamento', 'equipamento');
     ligarFiltroRapido('fMotCV', 'potencia');
@@ -424,6 +430,21 @@ function motorAtivoNome(m) {
   return m.ativoTexto || Store.ativoNome(m.ativoId) || '—';
 }
 
+// Setor da árvore do Melvin (Filial > Setor > Ativo — sincronização de Ativos
+// grava Setor como Pasta do Ativo; ver ativoSetorNome em js/semanas.js). Um
+// motor Reserva/Oficina/Estoque não tem Equipamento instalado, então não dá
+// pra derivar o Setor dele — por isso também aceita um valor gravado
+// manualmente no próprio motor (`m.setor`), preenchido no cadastro.
+function motorSetorNome(m) {
+  if (m.setor) return m.setor;
+  if (!m.ativoId) return null;
+  const ativo = Store.get('ativos', m.ativoId);
+  return ativo ? ativoSetorNome(ativo) : null;
+}
+function setoresConhecidos() {
+  return [...new Set(Store.all('ativos').map(a => ativoSetorNome(a)).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+}
+
 function badgeTipo(tipo) {
   const map = { 'Motor': 'info', 'Redutor': 'warning' };
   return map[tipo] || 'neutral';
@@ -445,26 +466,47 @@ function abrirFormMotor(id, dadosClone) {
   const body = document.createElement('div');
   const tipoAtual = origem?.tipo || 'Motor';
   let docsTemp = modoClone ? [] : (motor?.documentos ? [...motor.documentos] : []);
+  // "Motorredutor" só é oferecido ao cadastrar um registro novo (não editando
+  // nem duplicando) — selecionar isso cria de uma vez um Motor + um Redutor já
+  // vinculados ao mesmo Equipamento, em vez de precisar cadastrar os dois
+  // separadamente e depois torcer pra apontarem pro mesmo lugar.
+  const opcoesTipo = (motor || modoClone) ? ['Motor', 'Redutor'] : ['Motor', 'Redutor', 'Motorredutor'];
   body.innerHTML = `
     <div class="form-grid">
-      <div class="field"><label>Tipo</label><select id="mTipo">${['Motor','Redutor'].map(t => `<option ${tipoAtual===t?'selected':''}>${t}</option>`).join('')}</select></div>
+      <div class="field"><label>Tipo</label><select id="mTipo">${opcoesTipo.map(t => `<option ${tipoAtual===t?'selected':''}>${t}</option>`).join('')}</select></div>
       <div class="field field-span-2"><label>Equipamento</label>
         <input id="mAtivo" list="dlAtivosMotor" placeholder="Selecione da lista ou digite livremente" value="${origem?.ativoTexto || (origem?.ativoId ? Store.ativoNome(origem.ativoId) : '')}">
         <datalist id="dlAtivosMotor">${ativos.map(a => `<option value="${a.tag} — ${a.nome}">`).join('')}</datalist>
       </div>
+      <div class="field"><label>Setor</label>
+        <input id="mSetor" list="dlSetoresMotor" placeholder="Preenche sozinho ao escolher o Equipamento" value="${origem ? (motorSetorNome(origem) || '') : ''}">
+        <datalist id="dlSetoresMotor">${setoresConhecidos().map(s => `<option value="${s}">`).join('')}</datalist>
+      </div>
       <div class="field field-span-2"><label>Equipamentos Compatíveis (se for sobressalente)</label><input id="mEquipCompativeis" list="dlAtivosMotor" placeholder="Ex: P01, P02, P03 — deixe em branco se não for compartilhado" value="${origem?.equipamentosCompativeis || ''}"></div>
       <div class="field"><label>Status</label><select id="mStatus">${['Operação','Reserva','Oficina','Estoque'].map(s => `<option ${origem?.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
-      <div class="field"><label>Local</label><input id="mLocal" value="${origem?.localAtual || ''}"></div>
+      <div class="field"><label>Local</label><input id="mLocal" value="${origem?.localAtual || ''}" placeholder="Ex: Almoxarifado, Oficina Central... — onde está fisicamente se for Reserva/Oficina/Estoque"></div>
       <div class="field"><label>Data de Instalação</label><input type="date" id="mDataInstalacao" value="${modoClone ? '' : (origem?.dataInstalacao || '')}"></div>
       <div class="field"><label>Valor de Aquisição (R$)</label><input type="number" id="mValorAquisicao" value="${origem?.valorAquisicao ?? 0}"></div>
       <div class="field"><label>Depreciação (% a.a.)</label><input type="number" id="mDepreciacao" value="${origem?.depreciacaoPercentual ?? 10}"></div>
       <div class="field"><label>Status de Manutenção</label><select id="mStatusManutencao">${['Em Dia','Pendente','Em Manutenção','Atrasada'].map(s => `<option ${origem?.statusManutencao===s?'selected':''}>${s}</option>`).join('')}</select></div>
     </div>
-    <div class="form-grid">
-      <div class="field"><label>TAG</label><input id="mTag" value="${modoClone ? 'MOT-' + String(Store.all('motores').length + 1).padStart(3, '0') : (origem?.tag || 'MOT-' + String(Store.all('motores').length + 1).padStart(3, '0'))}"></div>
-      <div class="field"><label>Código Interno</label><input id="mCodigoInterno" placeholder="Ex: MC6599" value="${modoClone ? '' : (origem?.codigoInterno || '')}"></div>
-      <div class="field"><label>Fabricante</label><input id="mFab" value="${origem?.fabricante || 'WEG'}"></div>
-      <div class="field"><label>Modelo</label><input id="mModelo" value="${origem?.modelo || ''}"></div>
+    <div id="blocoIdentidadeMotor" style="margin-top:16px;">
+      <div id="labelIdentidadeMotor" class="${tipoAtual === 'Motorredutor' ? '' : 'hidden'}" style="font-weight:600;font-size:13px;margin-bottom:10px;color:var(--text-muted);">Identificação — Motor</div>
+      <div class="form-grid">
+        <div class="field"><label>TAG</label><input id="mTag" value="${modoClone ? 'MOT-' + String(Store.all('motores').length + 1).padStart(3, '0') : (origem?.tag || 'MOT-' + String(Store.all('motores').length + 1).padStart(3, '0'))}"></div>
+        <div class="field"><label>Código Interno</label><input id="mCodigoInterno" placeholder="Ex: MC6599" value="${modoClone ? '' : (origem?.codigoInterno || '')}"></div>
+        <div class="field"><label>Fabricante</label><input id="mFab" value="${origem?.fabricante || 'WEG'}"></div>
+        <div class="field"><label>Modelo</label><input id="mModelo" value="${origem?.modelo || ''}"></div>
+      </div>
+    </div>
+    <div id="blocoIdentidadeRedutor" class="${tipoAtual === 'Motorredutor' ? '' : 'hidden'}" style="margin-top:16px;">
+      <div style="font-weight:600;font-size:13px;margin-bottom:10px;color:var(--text-muted);">Identificação — Redutor</div>
+      <div class="form-grid">
+        <div class="field"><label>TAG</label><input id="mTagRedutor" value="RED-${String(Store.all('motores').length + 1).padStart(3, '0')}"></div>
+        <div class="field"><label>Código Interno</label><input id="mCodigoInternoRedutor" placeholder="Ex: MC6599"></div>
+        <div class="field"><label>Fabricante</label><input id="mFabRedutor" value="SEW"></div>
+        <div class="field"><label>Modelo</label><input id="mModeloRedutor"></div>
+      </div>
     </div>
     <div id="blocoMotorEletrico" class="${tipoAtual === 'Redutor' ? 'hidden' : ''}" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border-soft);">
       <div style="font-weight:600;font-size:13px;margin-bottom:10px;color:var(--text-muted);">Dados Elétricos do Motor</div>
@@ -494,8 +536,24 @@ function abrirFormMotor(id, dadosClone) {
   App.openModal({ title: motor ? 'Editar Motor' : (modoClone ? 'Duplicar Motor' : 'Novo Motor'), body, footer, size: 'lg' });
   renderIcons();
   document.getElementById('mTipo').addEventListener('change', (e) => {
-    document.getElementById('blocoRedutor').classList.toggle('hidden', e.target.value === 'Motor');
-    document.getElementById('blocoMotorEletrico').classList.toggle('hidden', e.target.value === 'Redutor');
+    const v = e.target.value;
+    document.getElementById('blocoRedutor').classList.toggle('hidden', v === 'Motor');
+    document.getElementById('blocoMotorEletrico').classList.toggle('hidden', v === 'Redutor');
+    document.getElementById('blocoIdentidadeRedutor').classList.toggle('hidden', v !== 'Motorredutor');
+    document.getElementById('labelIdentidadeMotor').classList.toggle('hidden', v !== 'Motorredutor');
+  });
+
+  // Ao escolher um Equipamento real da lista, preenche o Setor sozinho (só se
+  // ainda estiver vazio, pra não sobrescrever um valor que a pessoa já digitou
+  // à mão — ex: motor Reserva sem Equipamento, com Setor manual).
+  document.getElementById('mAtivo').addEventListener('change', (e) => {
+    const digitado = e.target.value.trim();
+    const ativoEncontrado = ativos.find(a => `${a.tag} — ${a.nome}` === digitado || a.nome === digitado || a.tag === digitado);
+    const setorEl = document.getElementById('mSetor');
+    if (ativoEncontrado && !setorEl.value.trim()) {
+      const setor = ativoSetorNome(ativoEncontrado);
+      if (setor) setorEl.value = setor;
+    }
   });
 
   function refreshDocsFormMotor() {
@@ -529,23 +587,54 @@ function abrirFormMotor(id, dadosClone) {
     const tipo = val('mTipo');
     const digitadoAtivo = val('mAtivo').trim();
     const ativoEncontrado = ativos.find(a => `${a.tag} — ${a.nome}` === digitadoAtivo || a.nome === digitadoAtivo || a.tag === digitadoAtivo);
-    const data = {
-      tag: val('mTag'), codigoInterno: val('mCodigoInterno'), tipo,
+    const comum = {
       ativoId: ativoEncontrado ? ativoEncontrado.id : null,
       ativoTexto: ativoEncontrado ? '' : digitadoAtivo,
+      setor: val('mSetor').trim(),
       equipamentosCompativeis: val('mEquipCompativeis'),
+      status: val('mStatus'), localAtual: val('mLocal'),
+      dataInstalacao: val('mDataInstalacao'), valorAquisicao: Number(val('mValorAquisicao')) || 0,
+      depreciacaoPercentual: Number(val('mDepreciacao')) || 0, statusManutencao: val('mStatusManutencao'),
+      documentos: docsTemp,
+    };
+
+    if (tipo === 'Motorredutor') {
+      // Só aparece ao cadastrar um registro novo — cria os dois já vinculados
+      // ao mesmo Equipamento/Setor/Status/Local, prontos pra formar o
+      // conjunto combinado na tabela (ver motorParPareado).
+      Store.add('motores', {
+        ...comum, tag: val('mTag'), codigoInterno: val('mCodigoInterno'), tipo: 'Motor',
+        fabricante: val('mFab'), modelo: val('mModelo'),
+        potenciaCV: Number(val('mPot')), tensaoV: Number(val('mTensao')), correnteA: Number(val('mCorrente')), rpm: Number(val('mRpm')),
+        relacaoReducao: null, rpmSaida: null, torqueSaidaNm: null,
+        historicoTrocas: [], manutencoes: [],
+      });
+      Store.add('motores', {
+        ...comum, tag: val('mTagRedutor'), codigoInterno: val('mCodigoInternoRedutor'), tipo: 'Redutor',
+        fabricante: val('mFabRedutor'), modelo: val('mModeloRedutor'),
+        potenciaCV: null, tensaoV: null, correnteA: null, rpm: null,
+        relacaoReducao: val('mRedRelacao') ? Number(val('mRedRelacao')) : null,
+        rpmSaida: val('mRedRpmSaida') ? Number(val('mRedRpmSaida')) : null,
+        torqueSaidaNm: val('mRedTorque') ? Number(val('mRedTorque')) : null,
+        historicoTrocas: [], manutencoes: [],
+        documentos: [], // já anexados ao Motor acima — evita guardar os mesmos arquivos duas vezes
+      });
+      App.toast('Motorredutor cadastrado — motor e redutor já vinculados ao mesmo equipamento.', 'success');
+      App.closeModal();
+      return;
+    }
+
+    const data = {
+      tag: val('mTag'), codigoInterno: val('mCodigoInterno'), tipo,
       fabricante: val('mFab'), modelo: val('mModelo'),
       potenciaCV: tipo === 'Motor' ? Number(val('mPot')) : null,
       tensaoV: tipo === 'Motor' ? Number(val('mTensao')) : null,
       correnteA: tipo === 'Motor' ? Number(val('mCorrente')) : null,
       rpm: tipo === 'Motor' ? Number(val('mRpm')) : null,
-      status: val('mStatus'), localAtual: val('mLocal'),
-      dataInstalacao: val('mDataInstalacao'), valorAquisicao: Number(val('mValorAquisicao')) || 0,
-      depreciacaoPercentual: Number(val('mDepreciacao')) || 0, statusManutencao: val('mStatusManutencao'),
       relacaoReducao: tipo !== 'Motor' && val('mRedRelacao') ? Number(val('mRedRelacao')) : null,
       rpmSaida: tipo !== 'Motor' && val('mRedRpmSaida') ? Number(val('mRedRpmSaida')) : null,
       torqueSaidaNm: tipo !== 'Motor' && val('mRedTorque') ? Number(val('mRedTorque')) : null,
-      documentos: docsTemp,
+      ...comum,
     };
     if (motor) {
       // Se este registro faz parte de um conjunto Motorredutor e o Equipamento

@@ -311,7 +311,8 @@ input[type="checkbox"]{accent-color:var(--accent);width:15px;height:15px;cursor:
 .form-grid.cols-1{grid-template-columns:1fr;}
 .form-grid.cols-3{grid-template-columns:repeat(3,1fr);}
 .form-grid.cols-4{grid-template-columns:repeat(4,1fr);}
-@media(max-width:640px){.form-grid,.form-grid.cols-3,.form-grid.cols-4{grid-template-columns:1fr;}}
+.form-grid.cols-auto{grid-template-columns:repeat(auto-fit,minmax(180px,1fr));}
+@media(max-width:640px){.form-grid,.form-grid.cols-3,.form-grid.cols-4,.form-grid.cols-auto{grid-template-columns:1fr;}}
 .field{display:flex;flex-direction:column;gap:6px;}
 .field label{font-size:12px;font-weight:600;color:var(--text-muted);}
 .field input,.field select,.field textarea{
