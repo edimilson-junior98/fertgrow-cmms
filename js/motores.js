@@ -332,6 +332,7 @@ Views.motores = {
                 <td>—</td>
                 <td><div class="row-actions">
                   <button class="btn btn-sm" data-ver-conjunto="${motor.id}:${redutor.id}" title="Ver Motor e Redutor">${Icon('eye',14)}</button>
+                  <button class="btn btn-sm" data-mover-motor="${motor.id}" title="Mover o conjunto para outro equipamento">${Icon('arrow-right',14)}</button>
                 </div></td>
               </tr>`;
               }
@@ -1015,8 +1016,10 @@ function abrirMoverMotor(id) {
   const body = document.createElement('div');
   body.innerHTML = `
     <p class="text-muted" style="font-size:13px;margin-bottom:14px;">
-      Mover o motor <strong>${m.tag}</strong> para outro equipamento/conjunto (ex.: o
-      motorredutor de um misturador). Equipamento atual: <strong>${equipamentoAtual || '—'}</strong>.
+      ${parceiro
+        ? `Mover o conjunto <strong>Motorredutor</strong> — motor <strong>${m.tag}</strong> + ${parceiro.tipo === 'Redutor' ? 'redutor' : 'motor'} <strong>${parceiro.tag}</strong> — para outro equipamento. Os dois são movidos juntos, mantendo o conjunto.`
+        : `Mover o ${m.tipo === 'Redutor' ? 'redutor' : 'motor'} <strong>${m.tag}</strong> para outro equipamento/conjunto (ex.: o motorredutor de um misturador).`}
+      Equipamento atual: <strong>${equipamentoAtual || '—'}</strong>.
     </p>
     <div class="form-grid">
       <div class="field field-span-2"><label>Novo Equipamento</label>
@@ -1027,7 +1030,7 @@ function abrirMoverMotor(id) {
   const footer = document.createElement('div');
   footer.style.cssText = 'display:flex;gap:8px;width:100%;justify-content:flex-end;';
   footer.innerHTML = `<button class="btn" id="cancelMov">Cancelar</button><button class="btn btn-primary" id="saveMov">${Icon('arrow-right',15)} Mover</button>`;
-  App.openModal({ title: 'Mover Motor para Equipamento', body, footer });
+  App.openModal({ title: parceiro ? 'Mover Conjunto Motorredutor' : 'Mover Motor para Equipamento', body, footer });
   renderIcons();
   document.getElementById('cancelMov').onclick = App.closeModal;
   document.getElementById('saveMov').onclick = () => {
