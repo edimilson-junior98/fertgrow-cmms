@@ -201,7 +201,7 @@ const Store = (() => {
       tensaoV: 380,
       correnteA: 12 + i * 2,
       rpm: [1160, 1750, 3500][i % 3],
-      status: ['Operação', 'Operação', 'Reserva', 'Oficina', 'Estoque'][i % 5],
+      status: ['Operação', 'Operação', 'Reserva', 'Oficina', 'Novo'][i % 5],
       localAtual: at.nome,
       dataInstalacao: at.dataInstalacao,
       dataAquisicao: at.dataInstalacao,
@@ -216,7 +216,7 @@ const Store = (() => {
       rpmSaida: i % 3 === 0 ? Math.round([1160, 1750, 3500][i % 3] / [10, 15, 20, 25][i % 4]) : null,
       torqueSaidaNm: i % 3 === 0 ? 200 + i * 25 : null,
       historicoTrocas: i % 4 === 0 ? [
-        { data: '2025-11-02', de: 'Estoque', para: 'Operação', motivo: 'Substituição por falha de rolamento', os: 'OS-0044' },
+        { data: '2025-11-02', de: 'Novo', para: 'Operação', motivo: 'Substituição por falha de rolamento', os: 'OS-0044' },
       ] : [],
       manutencoes: i % 3 === 0 ? [
         { id: uid('mm'), data: '2026-04-12', valor: 380 + i * 15, numeroNF: `NF-${88000 + i}`, descricao: 'Troca de rolamentos e revisão de ventilação.' },

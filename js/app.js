@@ -211,7 +211,7 @@ const App = (() => {
       'Aberta': 'info', 'Reserva': 'info',
       'Em Andamento': 'warning', 'Atenção': 'warning', 'Manutenção': 'warning', 'Aguardando Peça': 'warning',
       'Parado': 'danger', 'Sobrecarregada': 'danger', 'Cancelada': 'danger', 'Oficina': 'danger',
-      'Estoque': 'neutral',
+      'Novo': 'neutral',
     };
     return map[status] || 'neutral';
   }

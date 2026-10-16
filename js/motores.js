@@ -300,7 +300,7 @@ Views.motores = {
         ${miniStatMotor('Operação', porStatus('Operação'), 'success', 'power')}
         ${miniStatMotor('Reserva', porStatus('Reserva'), 'info', 'refresh')}
         ${miniStatMotor('Oficina', porStatus('Oficina'), 'danger', 'wrench')}
-        ${miniStatMotor('Estoque', porStatus('Estoque'), 'neutral', 'package')}
+        ${miniStatMotor('Novo', porStatus('Novo'), 'neutral', 'package')}
       </div>
 
       <div class="card" style="margin-bottom:16px;">
@@ -545,7 +545,7 @@ function abrirFormMotor(id, dadosClone) {
         <datalist id="dlSetoresMotor">${setoresConhecidos().map(s => `<option value="${s}">`).join('')}</datalist>
       </div>
       <div class="field field-span-2"><label>Equipamentos Compatíveis (se for sobressalente)</label><input id="mEquipCompativeis" list="dlAtivosMotor" placeholder="Ex: P01, P02, P03 — deixe em branco se não for compartilhado" value="${origem?.equipamentosCompativeis || ''}"></div>
-      <div class="field"><label>Status</label><select id="mStatus">${['Operação','Reserva','Oficina','Estoque'].map(s => `<option ${origem?.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="field"><label>Status</label><select id="mStatus">${['Operação','Reserva','Oficina','Novo'].map(s => `<option ${origem?.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
       <div class="field"><label>Local</label><input id="mLocal" value="${origem?.localAtual || ''}" placeholder="Ex: Almoxarifado, Oficina Central... — onde está fisicamente se for Reserva/Oficina/Estoque"></div>
       <div class="field"><label>Data de Instalação</label><input type="date" id="mDataInstalacao" value="${modoClone ? '' : (origem?.dataInstalacao || '')}"></div>
       <div class="field"><label>Valor de Aquisição (R$)</label><input type="number" id="mValorAquisicao" value="${origem?.valorAquisicao ?? 0}"></div>
@@ -555,7 +555,7 @@ function abrirFormMotor(id, dadosClone) {
     <div id="blocoIdentidadeMotor" style="margin-top:16px;">
       <div id="labelIdentidadeMotor" class="${tipoAtual === 'Motorredutor' ? '' : 'hidden'}" style="font-weight:600;font-size:13px;margin-bottom:10px;color:var(--text-muted);">Identificação — Motor</div>
       <div class="form-grid">
-        <div class="field"><label>TAG</label><input id="mTag" value="${modoClone ? 'MOT-' + String(Store.all('motores').length + 1).padStart(3, '0') : (origem?.tag || 'MOT-' + String(Store.all('motores').length + 1).padStart(3, '0'))}"></div>
+        <div class="field"><label>TAG</label><input id="mTag" placeholder="Ex: MOT-P01-MC-01-014" value="${motor ? (motor.tag || '') : ''}"></div>
         <div class="field"><label>Código Interno</label><input id="mCodigoInterno" placeholder="Ex: MC6599" value="${modoClone ? '' : (origem?.codigoInterno || '')}"></div>
         <div class="field"><label>Fabricante</label><input id="mFab" value="${origem?.fabricante || 'WEG'}"></div>
         <div class="field"><label>Modelo</label><input id="mModelo" value="${origem?.modelo || ''}"></div>
@@ -564,7 +564,7 @@ function abrirFormMotor(id, dadosClone) {
     <div id="blocoIdentidadeRedutor" class="${tipoAtual === 'Motorredutor' ? '' : 'hidden'}" style="margin-top:16px;">
       <div style="font-weight:600;font-size:13px;margin-bottom:10px;color:var(--text-muted);">Identificação — Redutor</div>
       <div class="form-grid">
-        <div class="field"><label>TAG</label><input id="mTagRedutor" value="RED-${String(Store.all('motores').length + 1).padStart(3, '0')}"></div>
+        <div class="field"><label>TAG</label><input id="mTagRedutor" placeholder="Ex: RED-P01-MC-01"></div>
         <div class="field"><label>Código Interno</label><input id="mCodigoInternoRedutor" placeholder="Ex: MC6599"></div>
         <div class="field"><label>Fabricante</label><input id="mFabRedutor" value="SEW"></div>
         <div class="field"><label>Modelo</label><input id="mModeloRedutor"></div>
@@ -1051,7 +1051,7 @@ function abrirTrocaMotor(id) {
   body.innerHTML = `
     <p class="text-muted" style="font-size:13px;margin-bottom:14px;">Registrar troca de status do motor <strong>${m.tag}</strong>. O histórico será atualizado automaticamente.</p>
     <div class="form-grid">
-      <div class="field"><label>Novo Status</label><select id="tNovoStatus">${['Operação','Reserva','Oficina','Estoque'].filter(s=>s!==m.status).map(s => `<option>${s}</option>`).join('')}</select></div>
+      <div class="field"><label>Novo Status</label><select id="tNovoStatus">${['Operação','Reserva','Oficina','Novo'].filter(s=>s!==m.status).map(s => `<option>${s}</option>`).join('')}</select></div>
       <div class="field"><label>Novo Local</label><input id="tNovoLocal" value="${m.localAtual}"></div>
       <div class="field field-span-2"><label>Motivo da troca</label><input id="tMotivo" placeholder="Ex: falha de rolamento, manutenção preventiva..."></div>
       <div class="field field-span-2"><label>OS relacionada (opcional)</label><input id="tOs" placeholder="OS-0000"></div>
@@ -1819,7 +1819,7 @@ function abrirRegistrarRetorno(motorId, comp) {
       <div class="field"><label>Data de Retorno</label><input type="date" id="rData" value="${new Date().toISOString().slice(0, 10)}"></div>
       <div class="field"><label>Valor Final Pago (R$)</label><input type="number" id="rValor" value="${valorSugerido}"></div>
       <div class="field"><label>Nº NF (opcional)</label><input id="rNF"></div>
-      <div class="field"><label>Novo Status do Motor</label><select id="rStatus">${['Operação', 'Reserva', 'Estoque'].map(s => `<option>${s}</option>`).join('')}</select></div>
+      <div class="field"><label>Novo Status do Motor</label><select id="rStatus">${['Operação', 'Reserva', 'Novo'].map(s => `<option>${s}</option>`).join('')}</select></div>
     </div>`;
   const footer = document.createElement('div');
   footer.style.cssText = 'display:flex;gap:8px;width:100%;justify-content:flex-end;';
