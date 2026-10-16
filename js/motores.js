@@ -325,7 +325,7 @@ Views.motores = {
                 <td>${motorSetorNome(motor) || '—'}</td>
                 <td>${motor.fabricante} · ${motor.modelo}</td>
                 <td>${motor.potenciaCV} CV · ${redutor.relacaoReducao ? redutor.relacaoReducao + ':1' : '—'}</td>
-                <td>${motor.status === redutor.status ? `<span class="badge badge-${App.badgeForStatus(motor.status)}">${motor.status}</span>` : `<span class="badge badge-${App.badgeForStatus(motor.status)}">${motor.status}</span> <span class="badge badge-${App.badgeForStatus(redutor.status)}">${redutor.status}</span>`}</td>
+                <td>${motor.status === redutor.status ? `<span class="badge badge-${App.badgeForStatus(motor.status)}">${motor.status}</span>` : `<span class="badge badge-${App.badgeForStatus(motor.status)}">${motor.status}</span> <span class="badge badge-${App.badgeForStatus(redutor.status)}">${redutor.status}</span>`} <span class="badge badge-success">Motorredutor</span></td>
                 <td>—</td>
                 <td>—</td>
                 <td>${motor.localAtual}</td>
@@ -352,7 +352,7 @@ Views.motores = {
                 <td>${motorSetorNome(m) || '—'}</td>
                 <td>${m.fabricante} · ${m.modelo}</td>
                 <td>${m.tipo === 'Redutor' ? (m.relacaoReducao ? `${m.relacaoReducao}:1` : '—') : `${m.potenciaCV} CV · ${m.rpm} RPM`}</td>
-                <td><span class="badge badge-${App.badgeForStatus(m.status)}">${m.status}</span></td>
+                <td><span class="badge badge-${App.badgeForStatus(m.status)}">${m.status}</span> ${tagParceiro ? `<span class="badge badge-success" title="Faz parte de um conjunto Motorredutor com ${tagParceiro}">Motorredutor</span>` : `<span class="badge badge-neutral">Solo</span>`}</td>
                 <td><span class="badge badge-${badgeManutencao(m.statusManutencao)}">${m.statusManutencao || '—'}</span></td>
                 <td><span class="badge badge-${badgeValidade(v.status)}">${v.status}</span></td>
                 <td>${m.localAtual}</td>
