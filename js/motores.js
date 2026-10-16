@@ -34,12 +34,12 @@ const MOTORES_COLS = [
   { key: 'tag', label: 'TAG' },
   { key: 'codigoInterno', label: 'Código Interno' },
   { key: 'tipo', label: 'Tipo', valor: m => tipoEfetivoMotor(m) },
-  { key: 'montagem', label: 'Montagem', valor: m => motorParPareado(m) ? 'Motorredutor' : 'Solo' },
   { key: 'equipamento', label: 'Equipamento', valor: m => motorAtivoNome(m) },
   { key: 'setor', label: 'Setor', valor: m => motorSetorNome(m) || '—' },
   { key: 'fabricanteModelo', label: 'Fabricante/Modelo', valor: m => `${m.fabricante || ''} · ${m.modelo || ''}` },
   { key: 'potencia', label: 'Potência', valor: m => m.tipo === 'Redutor' ? (m.relacaoReducao != null ? `${m.relacaoReducao}:1` : '') : (m.potenciaCV != null ? String(m.potenciaCV) : '') },
   { key: 'status', label: 'Status' },
+  { key: 'montagem', label: 'Montagem', valor: m => motorParPareado(m) ? 'Motorredutor' : 'Solo' },
   { key: 'statusManutencao', label: 'Manutenção', valor: m => m.statusManutencao || '—' },
   { key: 'depreciacao', label: 'Depreciação', valor: m => Store.validadeMotor(m).status },
   { key: 'localAtual', label: 'Local' },
@@ -322,12 +322,12 @@ Views.motores = {
                 <td class="cell-tag">${motor.tag} + ${redutor.tag}</td>
                 <td class="cell-tag">${motor.codigoInterno || '—'}</td>
                 <td><span class="badge badge-success">Motorredutor</span></td>
-                <td><span class="badge badge-success">Motorredutor</span></td>
                 <td>${motorAtivoNome(motor)}</td>
                 <td>${motorSetorNome(motor) || '—'}</td>
                 <td>${motor.fabricante} · ${motor.modelo}</td>
                 <td>${motor.potenciaCV} CV · ${redutor.relacaoReducao ? redutor.relacaoReducao + ':1' : '—'}</td>
                 <td>${motor.status === redutor.status ? `<span class="badge badge-${App.badgeForStatus(motor.status)}">${motor.status}</span>` : `<span class="badge badge-${App.badgeForStatus(motor.status)}">${motor.status}</span> <span class="badge badge-${App.badgeForStatus(redutor.status)}">${redutor.status}</span>`}</td>
+                <td><span class="badge badge-success">Motorredutor</span></td>
                 <td>—</td>
                 <td>—</td>
                 <td>${motor.localAtual}</td>
@@ -350,12 +350,12 @@ Views.motores = {
                 <td class="cell-tag">${m.tag}</td>
                 <td class="cell-tag">${m.codigoInterno || '—'}</td>
                 <td><span class="badge badge-${badgeTipo(m.tipo)}">${m.tipo || 'Motor'}</span>${tagParceiro ? ` <span class="badge badge-success" title="Faz parte de um conjunto Motorredutor com ${tagParceiro} — escondido pelo filtro atual">${Icon('layers',11)} Conjunto</span>` : ''}</td>
-                <td>${parceiro ? `<span class="badge badge-success" title="Faz parte de um conjunto Motorredutor com ${tagParceiro}">Motorredutor</span>` : `<span class="badge badge-neutral">Solo</span>`}</td>
                 <td>${motorAtivoNome(m)}</td>
                 <td>${motorSetorNome(m) || '—'}</td>
                 <td>${m.fabricante} · ${m.modelo}</td>
                 <td>${m.tipo === 'Redutor' ? (m.relacaoReducao ? `${m.relacaoReducao}:1` : '—') : `${m.potenciaCV} CV · ${m.rpm} RPM`}</td>
                 <td><span class="badge badge-${App.badgeForStatus(m.status)}">${m.status}</span></td>
+                <td>${parceiro ? `<span class="badge badge-success" title="Faz parte de um conjunto Motorredutor com ${tagParceiro}">Motorredutor</span>` : `<span class="badge badge-neutral">Solo</span>`}</td>
                 <td><span class="badge badge-${badgeManutencao(m.statusManutencao)}">${m.statusManutencao || '—'}</span></td>
                 <td><span class="badge badge-${badgeValidade(v.status)}">${v.status}</span></td>
                 <td>${m.localAtual}</td>
