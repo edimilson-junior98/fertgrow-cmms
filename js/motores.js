@@ -17,10 +17,35 @@
 // aparecem avulsos). Isso evita o bug de um registro "sumir" da tabela por
 // ter sido escondido dentro de um par errado escolhido arbitrariamente.
 function chaveEquipMotor(m) { return m.ativoId || (m.ativoTexto ? `txt:${m.ativoTexto}` : null); }
+
+// Vínculo manual explícito (botão "Montar Conjunto") — guarda o id do parceiro
+// dos dois lados (`parceiroConjuntoId`). Tem prioridade sobre o pareamento
+// automático por Equipamento logo abaixo: resolve os casos em que o
+// automático falha (mais de um Motor/Redutor no mesmo Equipamento, Tipo
+// cadastrado errado, etc.) sem precisar arrumar o cadastro primeiro. Só é
+// válido quando os dois apontam um pro outro E um dos dois é Redutor — um
+// vínculo entre dois registros do mesmo papel (dois Motores, por exemplo)
+// não forma um Motorredutor de verdade, então é ignorado.
+function motorParceiroManual(m) {
+  if (!m.parceiroConjuntoId) return null;
+  const p = Store.get('motores', m.parceiroConjuntoId);
+  if (!p || p.parceiroConjuntoId !== m.id) return null;
+  if (m.tipo === 'Redutor' && p.tipo !== 'Redutor') return { motor: p, redutor: m, manual: true };
+  if (m.tipo !== 'Redutor' && p.tipo === 'Redutor') return { motor: m, redutor: p, manual: true };
+  return null;
+}
 function motorParPareado(m) {
+  const manual = motorParceiroManual(m);
+  if (manual) return manual;
+  // Fallback: pareamento automático por Equipamento — só quando o equipamento
+  // tem EXATAMENTE um Motor e um Redutor livres (sem vínculo manual já usado
+  // em outro par); se houver mais de um de qualquer um dos dois, não dá pra
+  // saber com certeza qual forma o par, então NENHUM é agrupado (evita o bug
+  // de um registro "sumir" da tabela por ter sido escondido num par errado
+  // escolhido arbitrariamente).
   const k = chaveEquipMotor(m);
   if (!k) return null;
-  const doGrupo = Store.all('motores').filter(x => chaveEquipMotor(x) === k);
+  const doGrupo = Store.all('motores').filter(x => chaveEquipMotor(x) === k && !x.parceiroConjuntoId);
   const motoresDoGrupo = doGrupo.filter(x => x.tipo !== 'Redutor');
   const redutoresDoGrupo = doGrupo.filter(x => x.tipo === 'Redutor');
   if (motoresDoGrupo.length === 1 && redutoresDoGrupo.length === 1) {
@@ -227,19 +252,29 @@ Views.motores = {
       if (!porEquip.has(k)) porEquip.set(k, []);
       porEquip.get(k).push(m);
     });
+    const idsVisiveis = new Set(motores.map(m => m.id));
     const linhasTabela = [];
     const jaListado = new Set();
     motores.forEach(m => {
       if (jaListado.has(m.id)) return;
+      // Vínculo manual (botão "Montar Conjunto") tem prioridade — só combina a
+      // linha se o parceiro também estiver visível com os filtros atuais.
+      const manual = motorParceiroManual(m);
+      if (manual && idsVisiveis.has(manual.motor.id) && idsVisiveis.has(manual.redutor.id) && !jaListado.has(manual.motor.id) && !jaListado.has(manual.redutor.id)) {
+        jaListado.add(manual.motor.id); jaListado.add(manual.redutor.id);
+        linhasTabela.push({ conjunto: true, motor: manual.motor, redutor: manual.redutor, manual: true });
+        return;
+      }
       const k = chaveEquip(m);
       const grupo = k ? (porEquip.get(k) || []) : [];
       // Só forma o par quando há exatamente 1 Motor + 1 Redutor visíveis neste
-      // equipamento (mesma regra de motorParPareado, mas sobre a lista já
-      // filtrada) — com mais de um de qualquer um dos dois, não dá pra saber
-      // qual é o par certo, então nenhum vira "Motorredutor" (evita esconder
-      // um registro dentro de um par escolhido arbitrariamente).
-      const motoresDoGrupo = grupo.filter(x => x.tipo !== 'Redutor');
-      const redutoresDoGrupo = grupo.filter(x => x.tipo === 'Redutor');
+      // equipamento, sem vínculo manual já usado em outro par (mesma regra de
+      // motorParPareado, mas sobre a lista já filtrada) — com mais de um de
+      // qualquer um dos dois, não dá pra saber qual é o par certo, então
+      // nenhum vira "Motorredutor" (evita esconder um registro dentro de um
+      // par escolhido arbitrariamente).
+      const motoresDoGrupo = grupo.filter(x => x.tipo !== 'Redutor' && !x.parceiroConjuntoId);
+      const redutoresDoGrupo = grupo.filter(x => x.tipo === 'Redutor' && !x.parceiroConjuntoId);
       const motorDoGrupo = motoresDoGrupo.length === 1 ? motoresDoGrupo[0] : null;
       const redutorDoGrupo = redutoresDoGrupo.length === 1 ? redutoresDoGrupo[0] : null;
       if (motorDoGrupo && redutorDoGrupo && !jaListado.has(motorDoGrupo.id) && !jaListado.has(redutorDoGrupo.id)) {
@@ -335,6 +370,7 @@ Views.motores = {
                 <td><div class="row-actions">
                   <button class="btn btn-sm" data-ver-conjunto="${motor.id}:${redutor.id}" title="Ver Motor e Redutor">${Icon('eye',14)}</button>
                   <button class="btn btn-sm" data-mover-motor="${motor.id}" title="Mover o conjunto para outro equipamento">${Icon('arrow-right',14)}</button>
+                  ${linha.manual ? `<button class="btn btn-sm btn-danger" data-desfazer-conjunto="${motor.id}:${redutor.id}" title="Desfazer conjunto montado manualmente">${Icon('x',14)}</button>` : ''}
                 </div></td>
               </tr>`;
               }
@@ -366,6 +402,7 @@ Views.motores = {
                   <button class="btn btn-sm" data-dup-motor="${m.id}" title="Duplicar">${Icon('package',14)}</button>
                   <button class="btn btn-sm" data-swap-motor="${m.id}" title="Trocar status">${Icon('refresh',14)}</button>
                   <button class="btn btn-sm" data-mover-motor="${m.id}" title="Mover para outro equipamento">${Icon('arrow-right',14)}</button>
+                  ${!parceiro ? `<button class="btn btn-sm" data-montar-conjunto="${m.id}" title="Montar Conjunto Motorredutor">${Icon('layers',14)}</button>` : ''}
                   <button class="btn btn-sm btn-danger" data-del-motor="${m.id}" title="Excluir">${Icon('trash',14)}</button>
                 </div></td>
               </tr>`; }).join('') || `<tr><td colspan="13"><div class="empty">${Icon('bolt',30)}<span>${motoresTodos.length ? 'Nenhum motor encontrado com os filtros atuais.' : 'Nenhum motor cadastrado.'}</span></div></td></tr>`}
@@ -387,7 +424,23 @@ Views.motores = {
     document.querySelectorAll('[data-swap-motor]').forEach(b => b.addEventListener('click', () => abrirTrocaMotor(b.dataset.swapMotor)));
     document.querySelectorAll('[data-mover-motor]').forEach(b => b.addEventListener('click', () => abrirMoverMotor(b.dataset.moverMotor)));
     document.querySelectorAll('[data-del-motor]').forEach(b => b.addEventListener('click', () => {
-      App.confirmAction('Excluir este motor do cadastro?', () => { Store.remove('motores', b.dataset.delMotor); App.toast('Motor excluído.', 'success'); });
+      App.confirmAction('Excluir este motor do cadastro?', () => {
+        const m = Store.get('motores', b.dataset.delMotor);
+        // Se tinha vínculo manual de conjunto, libera o parceiro — senão ele
+        // fica "preso" apontando pra um id que não existe mais.
+        if (m?.parceiroConjuntoId) Store.update('motores', m.parceiroConjuntoId, { parceiroConjuntoId: null });
+        Store.remove('motores', b.dataset.delMotor);
+        App.toast('Motor excluído.', 'success');
+      });
+    }));
+    document.querySelectorAll('[data-montar-conjunto]').forEach(b => b.addEventListener('click', () => abrirMontarConjunto(Store.get('motores', b.dataset.montarConjunto))));
+    document.querySelectorAll('[data-desfazer-conjunto]').forEach(b => b.addEventListener('click', () => {
+      const [motorId, redutorId] = b.dataset.desfazerConjunto.split(':');
+      App.confirmAction('Desfazer este conjunto Motorredutor? Os dois registros continuam existindo, só deixam de aparecer combinados.', () => {
+        Store.update('motores', motorId, { parceiroConjuntoId: null });
+        Store.update('motores', redutorId, { parceiroConjuntoId: null });
+        App.toast('Conjunto desfeito.', 'success');
+      });
     }));
 
     document.querySelectorAll('[data-motcolfilter]').forEach(b => b.addEventListener('click', (e) => {
@@ -674,6 +727,52 @@ function duplicarMotor(id) {
   const original = Store.get('motores', id);
   if (!original) return;
   abrirFormMotor(null, original);
+}
+
+// Monta um conjunto Motorredutor por vínculo manual explícito — alternativa ao
+// pareamento automático por Equipamento (que exige exatamente 1 Motor + 1
+// Redutor livres no mesmo lugar, e falha quando sobra um terceiro registro
+// ou o Tipo foi cadastrado errado). O candidato é sempre do tipo oposto ao de
+// `m` e precisa estar "livre" (sem conjunto já formado, manual ou automático).
+function abrirMontarConjunto(m) {
+  if (!m) return;
+  const buscaRedutor = m.tipo !== 'Redutor';
+  const mesmoEquip = chaveEquipMotor(m);
+  const candidatos = Store.all('motores')
+    .filter(x => x.id !== m.id && (buscaRedutor ? x.tipo === 'Redutor' : x.tipo !== 'Redutor') && !motorParPareado(x))
+    .sort((a, b) => {
+      const aMesmo = chaveEquipMotor(a) === mesmoEquip ? 0 : 1;
+      const bMesmo = chaveEquipMotor(b) === mesmoEquip ? 0 : 1;
+      return aMesmo !== bMesmo ? aMesmo - bMesmo : a.tag.localeCompare(b.tag, 'pt-BR');
+    });
+  const body = document.createElement('div');
+  body.innerHTML = `
+    <p class="text-muted" style="font-size:13px;margin-bottom:14px;">
+      Escolha qual ${buscaRedutor ? 'redutor' : 'motor'} forma o conjunto Motorredutor junto com <strong>${m.tag}</strong>.
+      Os dois continuam sendo registros separados — só passam a aparecer combinados na tabela.
+    </p>
+    <div class="field">
+      <label>${buscaRedutor ? 'Redutor' : 'Motor'}</label>
+      <select id="mcParceiro">
+        <option value="">Selecione...</option>
+        ${candidatos.map(c => `<option value="${c.id}">${c.tag}${c.codigoInterno ? ' · ' + c.codigoInterno : ''} — ${motorAtivoNome(c)}</option>`).join('')}
+      </select>
+    </div>
+    ${candidatos.length ? '' : `<p class="text-muted" style="font-size:12.5px;margin-top:8px;">Nenhum ${buscaRedutor ? 'redutor' : 'motor'} livre (sem conjunto) encontrado no cadastro.</p>`}`;
+  const footer = document.createElement('div');
+  footer.style.cssText = 'display:flex;gap:8px;width:100%;justify-content:flex-end;';
+  footer.innerHTML = `<button class="btn" id="cancelMC">Cancelar</button><button class="btn btn-primary" id="saveMC" ${candidatos.length ? '' : 'disabled'}>${Icon('check', 15)} Montar Conjunto</button>`;
+  App.openModal({ title: `Montar Conjunto Motorredutor — ${m.tag}`, body, footer });
+  renderIcons();
+  document.getElementById('cancelMC').onclick = App.closeModal;
+  document.getElementById('saveMC').onclick = () => {
+    const parceiroId = document.getElementById('mcParceiro').value;
+    if (!parceiroId) { App.toast('Selecione um parceiro.', 'danger'); return; }
+    Store.update('motores', m.id, { parceiroConjuntoId: parceiroId });
+    Store.update('motores', parceiroId, { parceiroConjuntoId: m.id });
+    App.toast('Conjunto Motorredutor montado.', 'success');
+    App.closeModal();
+  };
 }
 
 // A linha "Motorredutor" da tabela representa um Motor + um Redutor no mesmo Equipamento —
