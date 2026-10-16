@@ -338,11 +338,16 @@ Views.motores = {
               }
               const m = linha.m;
               const v = Store.validadeMotor(m);
+              // Mesmo quando o filtro atual escondeu o parceiro (ou a coluna filtrada
+              // separou os dois), motorParPareado() olha o cadastro inteiro — se `m`
+              // de fato tem par, avisa aqui que ele pertence a um conjunto Motorredutor.
+              const parceiro = motorParPareado(m);
+              const tagParceiro = parceiro ? (m.tipo === 'Redutor' ? parceiro.motor.tag : parceiro.redutor.tag) : null;
               return `
               <tr>
                 <td class="cell-tag">${m.tag}</td>
                 <td class="cell-tag">${m.codigoInterno || '—'}</td>
-                <td><span class="badge badge-${badgeTipo(m.tipo)}">${m.tipo || 'Motor'}</span></td>
+                <td><span class="badge badge-${badgeTipo(m.tipo)}">${m.tipo || 'Motor'}</span>${tagParceiro ? ` <span class="badge badge-success" title="Faz parte de um conjunto Motorredutor com ${tagParceiro} — escondido pelo filtro atual">${Icon('layers',11)} Conjunto</span>` : ''}</td>
                 <td>${motorAtivoNome(m)}</td>
                 <td>${motorSetorNome(m) || '—'}</td>
                 <td>${m.fabricante} · ${m.modelo}</td>
