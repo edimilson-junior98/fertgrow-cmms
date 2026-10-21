@@ -13,9 +13,9 @@
    - Sem convite prévio, não é possível criar conta.
    ========================================================================== */
 
-// Login ativado — o sistema vai ficar acessível publicamente (GitHub Pages),
-// então exige e-mail/senha antes de mostrar qualquer dado real.
-const AUTH_ATIVO = true;
+// Login desativado por decisão do usuário (2026-10-21) — o site fica
+// acessível publicamente (GitHub Pages) sem exigir e-mail/senha.
+const AUTH_ATIVO = false;
 
 let AuthUser = null;    // sessão do Supabase Auth
 let AuthProfile = null; // linha correspondente em "profiles"
