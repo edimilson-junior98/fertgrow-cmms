@@ -237,6 +237,22 @@ const MelvinSync = (function () {
     return '';
   }
 
+  // A API de integração (GetDadosIntegracao) às vezes manda Oficina vazia
+  // mesmo quando o campo está preenchido de verdade dentro da Melvin — já
+  // confirmado visualmente pelo usuário numa OS da Pá Carregadeira (tag
+  // MTZ-MEM-PC12), que mostra "EM - Eletromecânica" na tela da Melvin mas vem
+  // vazia por aqui. Não é falta de preenchimento, é bug/limitação da própria
+  // API de integração. 66 das 68 OS sem oficina no ano inteiro têm tag
+  // começando com "MTZ-MEM" (Manutenção de Equipamentos Móveis — onde ficam
+  // as Pás Carregadeiras) — por pedido do usuário, assume Eletromecânica só
+  // pra esse grupo específico quando a oficina vier vazia; fora disso
+  // continua honesto (oficina vazia vira "Sem oficina definida" na tela).
+  function oficinaComFallback(os) {
+    if (os.Oficina) return os.Oficina;
+    if ((os.TagAtivo || '').startsWith('MTZ-MEM')) return 'Eletromecânica';
+    return '';
+  }
+
   function acharOuCriarOrdemIntegracao(os, contadores) {
     // Este payload não traz um id de equipamento cru pra cruzar (como
     // `itens[0].id` no endpoint antigo) — o cruzamento aqui é pela TAG do
@@ -244,6 +260,7 @@ const MelvinSync = (function () {
     // sincronização de Ativos.
     const ativoMatch = os.TagAtivo ? Store.all('ativos').find(a => a.tag === os.TagAtivo) : null;
     const dataProgramada = ((os.DatasProgramacao && os.DatasProgramacao[0]) || os.DataAbertura || '').slice(0, 10);
+    const oficina = oficinaComFallback(os);
 
     const dados = {
       numero: 'MEL-' + os.Numero,
@@ -252,10 +269,10 @@ const MelvinSync = (function () {
       descricao: os.Descricao || '(sem descrição)',
       prioridade: mapPrioridadeOSIntegracao(os.Prioridade),
       semana: dataParaSemana(dataProgramada),
-      responsavel: os.Oficina || '', // compat: mesmo campo que o endpoint antigo preenchia com a oficina
+      responsavel: oficina, // compat: mesmo campo que o endpoint antigo preenchia com a oficina
       planta: os.Setor || os.Filial || '',
       executante: derivarExecutanteIntegracao(os),
-      oficina: os.Oficina || '',
+      oficina,
       tagAtivo: os.TagAtivo || '',
       nomeAtivo: os.NomeAtivo || '',
       horasPrevistas: os.TempoExecucao || 0,
