@@ -263,6 +263,12 @@ const MelvinSync = (function () {
       solicitante: 'Melvin',
       dataAbertura: (os.DataAbertura || '').slice(0, 10),
       dataProgramada,
+      // `dataProgramada` acima sempre tem um valor (cai pra DataAbertura
+      // quando a Melvin não manda data programada — ver comentário logo
+      // acima de onde ela é calculada), então sozinha ela não diz se a OS
+      // foi de fato programada ou só aberta no dia. Este campo preserva essa
+      // distinção: true só quando a Melvin mandou mesmo uma DatasProgramacao.
+      temProgramacaoReal: !!(os.DatasProgramacao && os.DatasProgramacao.length > 0),
       // O payload de integração não traz uma data de encerramento real (só
       // DataAbertura/DatasProgramacao) — fica null em vez de "chutar" a data
       // de abertura como se fosse a conclusão (ver nota no relatório final).
