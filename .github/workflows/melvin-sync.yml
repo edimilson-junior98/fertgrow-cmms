@@ -19,4 +19,5 @@ jobs:
         env:
           MELVIN_EMAIL: ${{ secrets.MELVIN_EMAIL }}
           MELVIN_PASSWORD: ${{ secrets.MELVIN_PASSWORD }}
+          MELVIN_INTEGRACAO_CODIGO: ${{ secrets.MELVIN_INTEGRACAO_CODIGO }}
         run: node scripts/sync-melvin-cloud.js
