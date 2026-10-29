@@ -86,9 +86,16 @@ async function main() {
   const MelvinSync = require('../js/melvinSync.js');
   const MelvinApi = require('../melvin-api.js');
 
+  // Ordens agora vêm do endpoint de integração (PowerBI), que exige uma janela
+  // dataInicio/dataFim — ano corrente inteiro (Jan a Dez), cobrindo OS já
+  // encerradas e as programadas pro resto do ano.
+  const anoCorrente = new Date().getFullYear();
+  const dataInicioOrdens = `${anoCorrente}-01-01`;
+  const dataFimOrdens = `${anoCorrente}-12-31`;
+
   const resumo = {};
   resumo.ativos = await MelvinSync.sincronizarAtivos(await MelvinApi.buscarArvoreAtivos());
-  resumo.ordens = await MelvinSync.sincronizarOrdens(await MelvinApi.buscarOrdensServico());
+  resumo.ordens = await MelvinSync.sincronizarOrdens(await MelvinApi.buscarDadosIntegracao(dataInicioOrdens, dataFimOrdens));
   resumo.solicitacoes = await MelvinSync.sincronizarSolicitacoes(await MelvinApi.buscarSolicitacoesServico());
   resumo.planos = await MelvinSync.sincronizarPlanos(await MelvinApi.buscarPlanosPreventivos());
   resumo.programacao = MelvinSync.sincronizarProgramacao();

@@ -17,9 +17,19 @@
 const http = require('http');
 const {
   buscarArvoreAtivos, buscarOrdensServico, buscarSolicitacoesServico, buscarPlanosPreventivos,
+  buscarDadosIntegracao,
 } = require('./melvin-api');
 
 const PORTA = 5178;
+
+// Janela padrão pra /melvin/ordens (endpoint de integração exige dataInicio/
+// dataFim) — ano corrente inteiro, mesmo critério usado na sincronização
+// automática (scripts/sync-melvin-cloud.js), pra cobrir tanto OS já
+// encerradas quanto programadas pra frente no ano.
+function janelaAnoCorrente() {
+  const ano = new Date().getFullYear();
+  return { dataInicio: `${ano}-01-01`, dataFim: `${ano}-12-31` };
+}
 
 const server = http.createServer((req, res) => {
   // CORS liberado pra página file:// do CMMS conseguir chamar este servidor.
@@ -42,7 +52,8 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.url.startsWith('/melvin/ordens')) {
-    buscarOrdensServico()
+    const { dataInicio, dataFim } = janelaAnoCorrente();
+    buscarDadosIntegracao(dataInicio, dataFim)
       .then((ordens) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, ordens }));

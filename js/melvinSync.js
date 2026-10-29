@@ -181,6 +181,111 @@ const MelvinSync = (function () {
     return MAPA_STATUS_OS[statusTexto] || 'Aberta';
   }
 
+  // ------------------------------------------------------------------------
+  // Ordens de Serviço — via o novo endpoint de integração (PowerBI), que
+  // substituiu o antigo OrdemServico/GetAll (ver melvin-api.js:
+  // buscarDadosIntegracao). Mantido lado a lado com acharOuCriarOrdem acima
+  // (que fica sem uso neste fluxo, mas não foi apagada) só por segurança,
+  // caso algo mais ainda dependa dela.
+  // ------------------------------------------------------------------------
+
+  // Status observados no payload de integração: Encerrada, Cancelada,
+  // Programada, Aguardando, Planejada, EmExecucao, EmPlanejamento. Mapeamento
+  // pedido: Encerrada→Concluída, EmExecucao→Em Andamento, Cancelada→Cancelada,
+  // e tudo mais (Programada/Aguardando/Planejada/EmPlanejamento) → Aberta.
+  const MAPA_STATUS_OS_INTEGRACAO = {
+    Encerrada: 'Concluída',
+    EmExecucao: 'Em Andamento',
+    Cancelada: 'Cancelada',
+  };
+  function mapStatusOSIntegracao(status) {
+    return MAPA_STATUS_OS_INTEGRACAO[status] || 'Aberta';
+  }
+
+  // O payload de integração manda `Prioridade` como texto livre direto (ex:
+  // "Alta", "Periódica"), diferente do endpoint antigo (objeto com
+  // `.descricao`). Reaproveita o texto quando vem preenchido — não força pra
+  // "Média" só porque o valor não é um dos 4 da lista antiga (ex: "Periódica"
+  // é um valor real do Melvin, não um erro) — só cai em "Média" se vier vazio.
+  function mapPrioridadeOSIntegracao(prioridade) {
+    return (prioridade || '').trim() || 'Média';
+  }
+
+  // O payload de integração não traz um "tipo de manutenção" estruturado como
+  // o endpoint antigo (tipoManutencao.indCorretiva/.descricao) — só dá pra
+  // tentar inferir por palavras-chave na própria descrição da OS, com o mesmo
+  // critério de bom senso de mapTipoOS (Preventiva como padrão).
+  function mapTipoOSIntegracao(descricao) {
+    const d = (descricao || '').toLowerCase();
+    if (d.includes('inspe') || d.includes('calibr') || d.includes('aferi')) return 'Inspeção';
+    if (d.includes('corretiva') || d.includes('quebra') || d.includes('falha')) return 'Corretiva';
+    return 'Preventiva';
+  }
+
+  // Deriva o nome do executante (pessoa) com a prioridade pedida: recurso
+  // UTILIZADO (mão de obra que de fato apontou/rodou a OS) > apontamento de
+  // horas > recurso PLANEJADO (só a intenção, pode ser só a oficina) > vazio.
+  // Fica vazio mesmo quando a OS só tem oficina/centro de trabalho planejado,
+  // sem nome de pessoa — ver nota no relatório final sobre essa limitação.
+  function derivarExecutanteIntegracao(os) {
+    const utilizado = (os.RecursosUtilizados || []).find(r => r.Tipo === 'MaoObra');
+    if (utilizado && utilizado.Descricao) return utilizado.Descricao;
+    const apontamento = (os.ApontamentosHoras || [])[0];
+    if (apontamento && apontamento.Funcionario) return apontamento.Funcionario;
+    const planejado = (os.RecursosPlanejados || []).find(r => r.Tipo === 'MaoObra');
+    if (planejado && planejado.Descricao) return planejado.Descricao;
+    return '';
+  }
+
+  function acharOuCriarOrdemIntegracao(os, contadores) {
+    // Este payload não traz um id de equipamento cru pra cruzar (como
+    // `itens[0].id` no endpoint antigo) — o cruzamento aqui é pela TAG do
+    // ativo (`TagAtivo`) contra `ativos.tag`, já preenchida pela
+    // sincronização de Ativos.
+    const ativoMatch = os.TagAtivo ? Store.all('ativos').find(a => a.tag === os.TagAtivo) : null;
+    const dataProgramada = ((os.DatasProgramacao && os.DatasProgramacao[0]) || os.DataAbertura || '').slice(0, 10);
+
+    const dados = {
+      numero: 'MEL-' + os.Numero,
+      ativoId: ativoMatch ? ativoMatch.id : null,
+      tipo: mapTipoOSIntegracao(os.Descricao),
+      descricao: os.Descricao || '(sem descrição)',
+      prioridade: mapPrioridadeOSIntegracao(os.Prioridade),
+      semana: dataParaSemana(dataProgramada),
+      responsavel: os.Oficina || '', // compat: mesmo campo que o endpoint antigo preenchia com a oficina
+      planta: os.Setor || os.Filial || '',
+      executante: derivarExecutanteIntegracao(os),
+      oficina: os.Oficina || '',
+      tagAtivo: os.TagAtivo || '',
+      nomeAtivo: os.NomeAtivo || '',
+      horasPrevistas: os.TempoExecucao || 0,
+      status: mapStatusOSIntegracao(os.Status),
+      solicitante: 'Melvin',
+      dataAbertura: (os.DataAbertura || '').slice(0, 10),
+      dataProgramada,
+      // O payload de integração não traz uma data de encerramento real (só
+      // DataAbertura/DatasProgramacao) — fica null em vez de "chutar" a data
+      // de abertura como se fosse a conclusão (ver nota no relatório final).
+      dataConclusao: null,
+      observacoes: '',
+      melvinId: os.Id,
+      melvinCodigo: os.Numero,
+    };
+
+    const existente = Store.all('ordens').find(o => o.melvinId === os.Id);
+    if (existente) {
+      Store.update('ordens', existente.id, dados);
+      contadores.ordensAtualizadas++;
+      return;
+    }
+    Store.add('ordens', {
+      ...dados,
+      horasReais: 0, paradaPlanta: false, horasParada: 0,
+      checklist: [], materiais: [], maoDeObra: [], fotos: [], assinatura: null,
+    });
+    contadores.ordensCriadas++;
+  }
+
   function acharOuCriarOrdem(os, contadores) {
     // `itens[0].id` é o id do equipamento lá no Melvin — cruza com o
     // `melvinId` gravado nos ativos pela sincronização de Ativos, se ela já
@@ -232,6 +337,11 @@ const MelvinSync = (function () {
     return antigas.length;
   }
 
+  // `ordensPreCarregadas` agora é a lista crua do endpoint de integração
+  // (melvin-api.js: buscarDadosIntegracao) — tanto faz se veio de lá direto
+  // (sincronização automática, scripts/sync-melvin-cloud.js) ou passando pelo
+  // servidor local (melvin-sync-server.js, rota /melvin/ordens, que chama o
+  // mesmo buscarDadosIntegracao por baixo) — o formato é sempre o mesmo.
   async function sincronizarOrdens(ordensPreCarregadas) {
     let ordens = ordensPreCarregadas;
     if (!ordens) {
@@ -241,7 +351,7 @@ const MelvinSync = (function () {
       ordens = body.ordens;
     }
     const contadores = { ordensCriadas: 0, ordensAtualizadas: 0 };
-    (ordens || []).forEach((os) => acharOuCriarOrdem(os, contadores));
+    (ordens || []).forEach((os) => acharOuCriarOrdemIntegracao(os, contadores));
     Store.persist();
     return contadores;
   }

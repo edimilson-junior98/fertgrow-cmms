@@ -16,6 +16,12 @@ const path = require('path');
 const SECRETS_PATH = path.join(__dirname, 'melvin.secrets.json');
 const MELVIN_HOST = 'api-novo.oimelvin.com.br';
 
+// Código de integração do PowerBI do Melvin — é o próprio GUID que funciona
+// como segredo compartilhado (a chamada é anônima, sem token nenhum): quem
+// tem esse código consegue os dados, por isso ele não vai em variável de
+// ambiente/secrets como login e senha, mas também não é alterado à toa.
+const CODIGO_INTEGRACAO_POWERBI = 'e2a31022-86f6-412d-b9f5-ccd1f1d36cff';
+
 function lerSecrets() {
   if (process.env.MELVIN_EMAIL && process.env.MELVIN_PASSWORD) {
     return {
@@ -158,7 +164,26 @@ async function buscarPlanosPreventivos() {
   return (json.result.items || []).filter((p) => p.dataInicio && !p.dataEncerramento);
 }
 
+// Endpoint novo de integração (PowerBI) — substitui o antigo OrdemServico/GetAll
+// como fonte das Ordens de Serviço (ver js/melvinSync.js). Traz MUITO mais
+// detalhe por OS (planta/setor, executante, recursos planejados/utilizados,
+// apontamentos de hora) do que o endpoint antigo, mas numa chamada só —
+// SEM paginação e, principalmente, SEM autenticação: o `codigoIntegracao` é o
+// próprio segredo, então não passa por autenticarNoMelvin().
+// `dataInicio`/`dataFim` no formato "YYYY-MM-DD".
+async function buscarDadosIntegracao(dataInicio, dataFim) {
+  const query = `codigoIntegracao=${CODIGO_INTEGRACAO_POWERBI}&dataInicio=${dataInicio}&dataFim=${dataFim}`;
+  const { status, json } = await requisitarJson({
+    path: `/api/services/app/PowerBI/GetDadosIntegracao?${query}`,
+    method: 'GET',
+  });
+  if (status !== 200 || !json.success) {
+    throw new Error(json.error?.message || `Falha ao buscar dados de integração no Melvin (HTTP ${status}).`);
+  }
+  return json.result || [];
+}
+
 module.exports = {
   autenticarNoMelvin, buscarArvoreAtivos, buscarOrdensServico,
-  buscarSolicitacoesServico, buscarPlanosPreventivos,
+  buscarSolicitacoesServico, buscarPlanosPreventivos, buscarDadosIntegracao,
 };
