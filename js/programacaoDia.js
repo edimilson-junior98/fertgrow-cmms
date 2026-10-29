@@ -15,6 +15,7 @@
    ========================================================================== */
 
 const PD_SEM_EXECUTANTE = 'Sem executante definido';
+const PD_SEM_OFICINA = 'Sem oficina definida';
 
 // Mapeamento de cor/rótulo SÓ para esta tela: o app já tem App.badgeForStatus
 // (js/app.js) pra colorir status em outras telas, mas a paleta pedida aqui é
@@ -60,7 +61,7 @@ function pdDiaPadrao() {
   return anteriores.length ? anteriores[anteriores.length - 1] : dias[0];
 }
 
-let _pdFiltro = { dia: null, planta: '', executante: '', status: '', busca: '' };
+let _pdFiltro = { dia: null, planta: '', executante: '', status: '', busca: '', agrupar: 'executante' };
 let _pdBuscaTimer = null;
 
 function pdRenderOsItem(o) {
@@ -151,15 +152,18 @@ Views.programacaoDia = {
       return true;
     });
 
-    // Agrupa (já filtrado) por executante — "Sem executante definido" sempre por último.
-    const porExecutante = {};
+    // Agrupa (já filtrado) por executante OU por oficina, conforme o
+    // alternador — o "sem X definido" de cada modo sempre por último.
+    const agruparPorOficina = _pdFiltro.agrupar === 'oficina';
+    const semGrupoLabel = agruparPorOficina ? PD_SEM_OFICINA : PD_SEM_EXECUTANTE;
+    const porGrupo = {};
     ordensFiltradas.forEach(o => {
-      const chave = o.executante || PD_SEM_EXECUTANTE;
-      (porExecutante[chave] = porExecutante[chave] || []).push(o);
+      const chave = (agruparPorOficina ? o.oficina : o.executante) || semGrupoLabel;
+      (porGrupo[chave] = porGrupo[chave] || []).push(o);
     });
-    const executantesExibidos = Object.keys(porExecutante).sort((a, b) => {
-      if (a === PD_SEM_EXECUTANTE) return 1;
-      if (b === PD_SEM_EXECUTANTE) return -1;
+    const gruposExibidos = Object.keys(porGrupo).sort((a, b) => {
+      if (a === semGrupoLabel) return 1;
+      if (b === semGrupoLabel) return -1;
       return a.localeCompare(b, 'pt-BR');
     });
 
@@ -172,33 +176,40 @@ Views.programacaoDia = {
     const horaCarregamento = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
     return `
-      <div class="view-head">
-        <div>
-          <h1>Programação de Manutenção</h1>
-          <div class="sub">Painel Diário por Executante</div>
+      <div class="content-bleed-top" style="background:var(--accent);color:var(--accent-ink);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+        <div style="min-width:260px;">
+          <h1 style="color:var(--accent-ink);margin:0;">Programação de Manutenção</h1>
+          <div style="opacity:.85;font-size:13px;">Painel Diário por Executante</div>
         </div>
-        <div class="view-actions">
-          <button class="btn" id="btnAtualizarProgDia">${Icon('refresh', 15)} Atualizar</button>
+        <div class="flex" style="gap:10px;align-items:center;">
+          ${Icon('calendar', 16)}
+          <div style="font-size:12px;opacity:.8;">Data da Programação</div>
+          <button class="btn btn-sm" id="btnPdDiaAnterior" ${temAnterior ? '' : 'disabled'} style="background:rgba(255,255,255,.12);color:var(--accent-ink);border-color:rgba(255,255,255,.25);">${Icon('arrow-left', 14)}</button>
+          <div style="font-weight:700;font-size:14px;min-width:140px;">${dias.length ? `${App.fmtDate(diaAtual)} (${pdDiaAbrev(diaAtual)})` : 'Sem OS programada'}</div>
+          <button class="btn btn-sm" id="btnPdDiaProximo" ${temProximo ? '' : 'disabled'} style="background:rgba(255,255,255,.12);color:var(--accent-ink);border-color:rgba(255,255,255,.25);">${Icon('arrow-right', 14)}</button>
+        </div>
+        <div class="flex" style="gap:16px;flex-wrap:wrap;">
+          <div>
+            <div style="font-size:11px;opacity:.75;margin-bottom:3px;">${Icon('building', 12)} Planta</div>
+            <select id="pdFiltroPlanta" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:7px 10px;color:var(--accent-ink);font-size:12.5px;">
+              <option value="" style="color:#111;">Todas</option>
+              ${plantas.map(p => `<option value="${escapeHtml(p)}" style="color:#111;" ${_pdFiltro.planta === p ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <div style="font-size:11px;opacity:.75;margin-bottom:3px;">${Icon('user', 12)} Executante</div>
+            <select id="pdFiltroExecutante" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:7px 10px;color:var(--accent-ink);font-size:12.5px;">
+              <option value="" style="color:#111;">Todos</option>
+              ${executantesOpts.map(e => `<option value="${escapeHtml(e)}" style="color:#111;" ${_pdFiltro.executante === e ? 'selected' : ''}>${escapeHtml(e)}</option>`).join('')}
+            </select>
+          </div>
         </div>
       </div>
 
-      <div class="card" style="padding:12px 16px;margin-bottom:18px;">
-        <div class="flex-between" style="flex-wrap:wrap;gap:12px;">
-          <div class="flex" style="gap:10px;align-items:center;">
-            <button class="btn btn-sm" id="btnPdDiaAnterior" ${temAnterior ? '' : 'disabled'}>${Icon('arrow-left', 14)}</button>
-            <div style="font-weight:700;font-size:14px;min-width:160px;">${dias.length ? `${App.fmtDate(diaAtual)} (${pdDiaAbrev(diaAtual)})` : 'Nenhum dia com OS programada'}</div>
-            <button class="btn btn-sm" id="btnPdDiaProximo" ${temProximo ? '' : 'disabled'}>${Icon('arrow-right', 14)}</button>
-          </div>
-          <div class="flex" style="gap:8px;flex-wrap:wrap;">
-            <select id="pdFiltroPlanta" style="background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:12.5px;">
-              <option value="">Todas as plantas</option>
-              ${plantas.map(p => `<option value="${escapeHtml(p)}" ${_pdFiltro.planta === p ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('')}
-            </select>
-            <select id="pdFiltroExecutante" style="background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:12.5px;">
-              <option value="">Todos os executantes</option>
-              ${executantesOpts.map(e => `<option value="${escapeHtml(e)}" ${_pdFiltro.executante === e ? 'selected' : ''}>${escapeHtml(e)}</option>`).join('')}
-            </select>
-          </div>
+      <div class="view-head" style="margin-bottom:18px;">
+        <div></div>
+        <div class="view-actions">
+          <button class="btn" id="btnAtualizarProgDia">${Icon('refresh', 15)} Atualizar</button>
         </div>
       </div>
 
@@ -220,7 +231,11 @@ Views.programacaoDia = {
       </div>
 
       <div class="view-head" style="margin-bottom:12px;">
-        <div><h3 style="font-size:16px;">Ordens de Serviço por Executante</h3></div>
+        <div><h3 style="font-size:16px;">Ordens de Serviço por ${agruparPorOficina ? 'Oficina' : 'Executante'}</h3></div>
+        <div class="pill-filter">
+          <span class="pill ${!agruparPorOficina ? 'active' : ''}" data-pd-agrupar="executante">${Icon('user', 12)} Por Executante</span>
+          <span class="pill ${agruparPorOficina ? 'active' : ''}" data-pd-agrupar="oficina">${Icon('wrench', 12)} Por Oficina</span>
+        </div>
       </div>
 
       <div class="field" style="position:relative;max-width:380px;margin-bottom:14px;">
@@ -235,8 +250,8 @@ Views.programacaoDia = {
       </div>
 
       <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;margin-bottom:20px;">
-        ${executantesExibidos.length
-          ? executantesExibidos.map(nome => pdRenderCardExecutante(nome, porExecutante[nome])).join('')
+        ${gruposExibidos.length
+          ? gruposExibidos.map(nome => pdRenderCardExecutante(nome, porGrupo[nome])).join('')
           : `<div class="empty">${Icon('clipboard', 30)}<span>Nenhuma OS encontrada para os filtros aplicados.</span></div>`}
       </div>
 
@@ -279,6 +294,11 @@ Views.programacaoDia = {
 
     document.querySelectorAll('[data-pd-status]').forEach(p => p.addEventListener('click', () => {
       _pdFiltro.status = p.dataset.pdStatus;
+      App.navigate('programacaoDia', true);
+    }));
+
+    document.querySelectorAll('[data-pd-agrupar]').forEach(p => p.addEventListener('click', () => {
+      _pdFiltro.agrupar = p.dataset.pdAgrupar;
       App.navigate('programacaoDia', true);
     }));
 

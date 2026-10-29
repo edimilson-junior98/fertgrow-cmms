@@ -191,6 +191,11 @@ h1,h2,h3,h4{font-family:var(--font-display);font-weight:600;margin:0;letter-spac
 
 .content{flex:1;padding:24px 26px 60px;max-width:1600px;width:100%;margin:0 auto;}
 
+/* Barra de cabeçalho que "sangra" até a borda do conteúdo (fora do padding
+   padrão de .content) — usada por telas com um cabeçalho de cor própria,
+   como Programação do Dia. Fica junto de .content pra herdar o max-width. */
+.content-bleed-top{margin:-24px -26px 20px;padding:16px 26px;}
+
 /* =========================== VIEW HEADER =========================== */
 .view-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:20px;flex-wrap:wrap;}
 .view-head h1{font-size:22px;}
@@ -486,6 +491,7 @@ input.tree-search-input{flex:1;min-width:0;}
   #collapseBtn{display:none;}
   .search-box{max-width:none;}
   .content{padding:16px;}
+  .content-bleed-top{margin:-16px -16px 16px;padding:14px 16px;}
   .topbar{padding:0 12px;gap:10px;}
   .breadcrumb{display:none;}
 }
