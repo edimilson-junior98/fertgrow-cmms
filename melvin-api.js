@@ -16,18 +16,17 @@ const path = require('path');
 const SECRETS_PATH = path.join(__dirname, 'melvin.secrets.json');
 const MELVIN_HOST = 'api-novo.oimelvin.com.br';
 
-// Código de integração do PowerBI do Melvin — é o próprio GUID que funciona
-// como segredo compartilhado (a chamada é anônima, sem token nenhum): quem
-// tem esse código consegue os dados, por isso ele não vai em variável de
-// ambiente/secrets como login e senha, mas também não é alterado à toa.
-const CODIGO_INTEGRACAO_POWERBI = 'e2a31022-86f6-412d-b9f5-ccd1f1d36cff';
-
 function lerSecrets() {
   if (process.env.MELVIN_EMAIL && process.env.MELVIN_PASSWORD) {
     return {
       userNameOrEmailAddress: process.env.MELVIN_EMAIL,
       password: process.env.MELVIN_PASSWORD,
       tenancyName: process.env.MELVIN_TENANCY || null,
+      // O código de integração do PowerBI é, ele mesmo, o segredo que libera
+      // os dados (chamada anônima, sem token) — por isso fica junto das
+      // outras credenciais, nunca hardcoded no código (este repositório é
+      // público no GitHub).
+      codigoIntegracaoPowerBI: process.env.MELVIN_INTEGRACAO_CODIGO,
     };
   }
   const raw = fs.readFileSync(SECRETS_PATH, 'utf8');
@@ -172,7 +171,9 @@ async function buscarPlanosPreventivos() {
 // próprio segredo, então não passa por autenticarNoMelvin().
 // `dataInicio`/`dataFim` no formato "YYYY-MM-DD".
 async function buscarDadosIntegracao(dataInicio, dataFim) {
-  const query = `codigoIntegracao=${CODIGO_INTEGRACAO_POWERBI}&dataInicio=${dataInicio}&dataFim=${dataFim}`;
+  const { codigoIntegracaoPowerBI } = lerSecrets();
+  if (!codigoIntegracaoPowerBI) throw new Error('codigoIntegracaoPowerBI não configurado (melvin.secrets.json ou MELVIN_INTEGRACAO_CODIGO).');
+  const query = `codigoIntegracao=${codigoIntegracaoPowerBI}&dataInicio=${dataInicio}&dataFim=${dataFim}`;
   const { status, json } = await requisitarJson({
     path: `/api/services/app/PowerBI/GetDadosIntegracao?${query}`,
     method: 'GET',
