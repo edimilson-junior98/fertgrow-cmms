@@ -18,15 +18,21 @@ const MELVIN_HOST = 'api-novo.oimelvin.com.br';
 
 function lerSecrets() {
   if (process.env.MELVIN_EMAIL && process.env.MELVIN_PASSWORD) {
+    // .trim() em tudo — um Secret do GitHub com uma quebra de linha ou
+    // espaço a mais no valor (fácil de acontecer ao colar) vira um caractere
+    // inválido dentro do path da requisição e o Node recusa ("Request path
+    // contains unescaped characters"), então mais vale limpar aqui do que
+    // confiar que o valor salvo no Secret está sempre exato.
+    const tenancy = (process.env.MELVIN_TENANCY || '').trim();
     return {
-      userNameOrEmailAddress: process.env.MELVIN_EMAIL,
-      password: process.env.MELVIN_PASSWORD,
-      tenancyName: process.env.MELVIN_TENANCY || null,
+      userNameOrEmailAddress: process.env.MELVIN_EMAIL.trim(),
+      password: process.env.MELVIN_PASSWORD.trim(),
+      tenancyName: tenancy || null,
       // O código de integração do PowerBI é, ele mesmo, o segredo que libera
       // os dados (chamada anônima, sem token) — por isso fica junto das
       // outras credenciais, nunca hardcoded no código (este repositório é
       // público no GitHub).
-      codigoIntegracaoPowerBI: process.env.MELVIN_INTEGRACAO_CODIGO,
+      codigoIntegracaoPowerBI: (process.env.MELVIN_INTEGRACAO_CODIGO || '').trim(),
     };
   }
   const raw = fs.readFileSync(SECRETS_PATH, 'utf8');
