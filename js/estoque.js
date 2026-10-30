@@ -68,6 +68,11 @@ Views.estoque = {
     const solicitacoes = precisaDadosPesados
       ? [...Store.all('solicitacoesCompra')].sort((a, b) => (b.data || '').localeCompare(a.data || '') || (b.criadoEm || 0) - (a.criadoEm || 0))
       : Store.all('solicitacoesCompra');
+    // Pedidos vindos do Controle de Ferramentas (origem: 'ferramentaria') ficam numa aba
+    // própria — são pedidos de rotina ao Almoxarifado, não Solicitações de Compra de
+    // verdade, e não devem se misturar com o que é criado direto aqui no CMMS.
+    const solicitacoesCompra = solicitacoes.filter(s => s.origem !== 'ferramentaria');
+    const solicitacoesAlmoxarifado = solicitacoes.filter(s => s.origem === 'ferramentaria');
     const projetos = precisaDadosPesados
       ? [...Store.all('projetos')].sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'))
       : Store.all('projetos');
@@ -90,7 +95,8 @@ Views.estoque = {
 
       <div class="tabs">
         <div class="tab ${_estAba === 'itens' ? 'active' : ''}" data-estaba="itens">Itens em Estoque</div>
-        <div class="tab ${_estAba === 'solicitacoes' ? 'active' : ''}" data-estaba="solicitacoes">Solicitações de Compra${solicitacoes.length ? ` (${solicitacoes.length})` : ''}</div>
+        <div class="tab ${_estAba === 'solicitacoes' ? 'active' : ''}" data-estaba="solicitacoes">Solicitações de Compra${solicitacoesCompra.length ? ` (${solicitacoesCompra.length})` : ''}</div>
+        <div class="tab ${_estAba === 'almoxarifado' ? 'active' : ''}" data-estaba="almoxarifado">Solicitações de Almoxarifado${solicitacoesAlmoxarifado.length ? ` (${solicitacoesAlmoxarifado.length})` : ''}</div>
         <div class="tab ${_estAba === 'projetos' ? 'active' : ''}" data-estaba="projetos">Projetos${projetos.length ? ` (${projetos.length})` : ''}</div>
       </div>
 
@@ -141,7 +147,15 @@ Views.estoque = {
       </div>
 
       <div id="pane-est-solicitacoes" class="${_estAba === 'solicitacoes' ? '' : 'hidden'}">
-        ${_estAba === 'solicitacoes' ? renderPaneSolicitacoes(solicitacoes, custoPorCodigo) : ''}
+        ${_estAba === 'solicitacoes' ? renderPaneSolicitacoes(solicitacoesCompra, custoPorCodigo) : ''}
+      </div>
+
+      <div id="pane-est-almoxarifado" class="${_estAba === 'almoxarifado' ? '' : 'hidden'}">
+        ${_estAba === 'almoxarifado' ? renderPaneSolicitacoes(solicitacoesAlmoxarifado, custoPorCodigo, {
+          titulo: 'Pedidos de Almoxarifado (Controle de Ferramentas)',
+          descricao: 'Pedidos feitos pela equipe no Controle de Ferramentas, ao solicitar itens do estoque pelo app de ferramentas. Não passam por Compras.',
+          vazio: 'Nenhum pedido de almoxarifado vindo do Controle de Ferramentas ainda.',
+        }) : ''}
       </div>
 
       <div id="pane-est-projetos" class="${_estAba === 'projetos' ? '' : 'hidden'}">
@@ -355,10 +369,15 @@ function renderResumoSolicitacoes(solicitacoesTodas, cache) {
 // Conteúdo das abas "Solicitações" e "Projetos" só é montado quando a aba
 // está de fato visível — evita recalcular tudo isso a cada letra digitada
 // na busca da aba "Itens" (que dispara um render completo da view).
-function renderPaneSolicitacoes(solicitacoes, cache) {
+function renderPaneSolicitacoes(solicitacoes, cache, opts = {}) {
+  const {
+    titulo = 'Histórico de Solicitações',
+    descricao = 'Cada solicitação enviada por e-mail fica registrada aqui. Preencha o <strong>Nº da SC</strong> quando o número sair no ERP — o campo salva automaticamente.',
+    vazio = 'Nenhuma solicitação de compra registrada ainda. Use o botão "Solicitar Compra" na aba de Itens.',
+  } = opts;
   return `
-    <div class="section-title">Histórico de Solicitações</div>
-    <p class="text-muted" style="font-size:12.5px;margin:0 0 14px;">Cada solicitação enviada por e-mail fica registrada aqui. Preencha o <strong>Nº da SC</strong> quando o número sair no ERP — o campo salva automaticamente.</p>
+    <div class="section-title">${titulo}</div>
+    <p class="text-muted" style="font-size:12.5px;margin:0 0 14px;">${descricao}</p>
     <div class="table-wrap">
       <table>
         <thead><tr><th>Data</th><th>Nº da SC</th><th>Tipo</th><th>Referência</th><th>Itens</th><th>Valor</th><th>Solicitante</th><th></th></tr></thead>
@@ -384,7 +403,7 @@ function renderPaneSolicitacoes(solicitacoes, cache) {
                 <button class="btn btn-sm" data-ver-sc="${s.id}" title="Ver detalhes">${Icon('eye',14)}</button>
                 <button class="btn btn-sm btn-danger" data-del-sc="${s.id}" title="Excluir registro">${Icon('trash',14)}</button>
               </div></td>
-            </tr>`).join('') || `<tr><td colspan="8"><div class="empty">${Icon('mail',30)}<span>Nenhuma solicitação de compra registrada ainda. Use o botão "Solicitar Compra" na aba de Itens.</span></div></td></tr>`}
+            </tr>`).join('') || `<tr><td colspan="8"><div class="empty">${Icon('mail',30)}<span>${vazio}</span></div></td></tr>`}
         </tbody>
       </table>
     </div>
