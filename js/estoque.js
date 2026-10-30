@@ -208,6 +208,13 @@ Views.estoque = {
       Store.update('solicitacoesCompra', e.target.dataset.scId, { numeroSC: e.target.value.trim() });
       App.toast('Nº da SC salvo.', 'success');
     }));
+    document.querySelectorAll('[data-copiar-codigos-sc]').forEach(b => b.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const s = Store.get('solicitacoesCompra', b.dataset.copiarCodigosSc);
+      const texto = (s?.itens || []).map(it => `${it.codigo} x${Number(it.qtde) || 1}`).join('\n');
+      const ok = await copiarTextoSimples(texto);
+      App.toast(ok ? 'Códigos copiados.' : 'Não foi possível copiar os códigos.', ok ? 'success' : 'danger');
+    }));
     document.querySelectorAll('[data-informar-sc-solic]').forEach(b => b.addEventListener('click', () => abrirInformarSCSolicitacao(b.dataset.informarScSolic)));
     document.querySelectorAll('[data-ver-sc]').forEach(b => b.addEventListener('click', () => abrirDetalheSC(b.dataset.verSc)));
     document.querySelectorAll('[data-del-sc]').forEach(b => b.addEventListener('click', () => {
@@ -363,8 +370,13 @@ function renderPaneSolicitacoes(solicitacoes, cache) {
                 style="width:130px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:6px 8px;color:var(--text);font-size:12.5px;box-sizing:border-box;"></td>
               <td><span class="badge badge-accent">${escapeHtml(s.tipo || '—')}</span></td>
               <td class="text-muted" style="font-size:12px;">${referenciaSolicitacao(s)}</td>
-              <td>${(s.itens || []).map(it => `<span class="cell-tag">${escapeHtml(it.codigo)}</span>`).join(' ')}
-                <span class="text-muted" style="font-size:11.5px;">(${(s.itens || []).length} ${(s.itens || []).length === 1 ? 'item' : 'itens'})</span></td>
+              <td>${(s.itens || []).map(it => `
+                <span class="cell-tag" style="display:inline-flex;align-items:center;gap:6px;margin:2px 4px 2px 0;">
+                  ${escapeHtml(it.codigo)}
+                  <button type="button" class="btn btn-sm" style="padding:3px 6px;" data-copiar-codigo="${escapeHtml(it.codigo)}" title="Copiar código">${Icon('clipboard', 12)}</button>
+                </span>`).join('')}
+                <span class="text-muted" style="font-size:11.5px;">(${(s.itens || []).length} ${(s.itens || []).length === 1 ? 'item' : 'itens'})</span>
+                ${(s.itens || []).length > 1 ? `<button type="button" class="btn btn-sm" style="margin-left:4px;" data-copiar-codigos-sc="${s.id}" title="Copiar todos os códigos desta solicitação">${Icon('clipboard', 12)} Todos</button>` : ''}</td>
               <td>${App.fmtMoney(valorSolicitacao(s, cache))}</td>
               <td>${escapeHtml(s.solicitante || '—')}</td>
               <td><div class="row-actions">
