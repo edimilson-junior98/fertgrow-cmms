@@ -68,8 +68,10 @@ async function autenticarNoMelvin() {
 
 async function buscarArvoreAtivos() {
   const auth = await autenticarNoMelvin();
+  // O endpoint antigo (ArvoreAtivo/GetTodos) começou a devolver 404 em algum
+  // momento — a Melvin trocou pra ArvoreAtivo/Get, mesmo shape de resposta.
   const { status, json } = await requisitarJson({
-    path: '/api/services/app/ArvoreAtivo/GetTodos?ExibirInativos=true',
+    path: '/api/services/app/ArvoreAtivo/Get?ExibirInativos=true',
     method: 'GET',
     headers: {
       Authorization: `Bearer ${auth.accessToken}`,
