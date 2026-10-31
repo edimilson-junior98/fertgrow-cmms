@@ -17,6 +17,22 @@
 const PD_SEM_EXECUTANTE = 'Sem executante definido';
 const PD_SEM_OFICINA = 'Sem oficina definida';
 
+// Nome "curto" (primeiro + último nome) pra caber melhor no card/filtro — só
+// na EXIBIÇÃO; o agrupamento e o filtro por trás continuam usando o nome
+// completo salvo na OS (`o.executante`), então dois nomes com o mesmo
+// primeiro+último mas sobrenome do meio diferente não se misturam por engano.
+// Quando a OS tem mais de um executante (campo já vem "Fulano, Beltrano"),
+// cada nome da lista é encurtado individualmente.
+function pdNomeCurto(nomeCompleto) {
+  const partes = (nomeCompleto || '').trim().split(/\s+/).filter(Boolean);
+  if (partes.length <= 2) return nomeCompleto;
+  return `${partes[0]} ${partes[partes.length - 1]}`;
+}
+function pdNomesCurto(nomes) {
+  if (!nomes || nomes === PD_SEM_EXECUTANTE) return nomes;
+  return nomes.split(',').map(n => pdNomeCurto(n.trim())).join(', ');
+}
+
 // Mapeamento de cor/rótulo SÓ para esta tela: o app já tem App.badgeForStatus
 // (js/app.js) pra colorir status em outras telas, mas a paleta pedida aqui é
 // diferente da dele (lá 'Aberta' é info/azul e 'Em Andamento' é warning/
@@ -82,14 +98,17 @@ function pdRenderOsItem(o) {
     </div>`;
 }
 
-function pdRenderCardExecutante(nome, ordensDoExecutante) {
+// `ehPessoa` diferencia o modo de agrupamento: esta função também é usada
+// pro agrupamento "Por Oficina" (onde `nome` é o nome da oficina, não de uma
+// pessoa) — o encurtamento primeiro+último só faz sentido pra nome de gente.
+function pdRenderCardExecutante(nome, ordensDoExecutante, ehPessoa = true) {
   const contagem = { 'Concluída': 0, 'Em Andamento': 0, 'Aberta': 0, 'Cancelada': 0 };
   ordensDoExecutante.forEach(o => { if (contagem[o.status] !== undefined) contagem[o.status]++; });
   return `
     <div class="card">
       <div class="card-head">
         <div>
-          <h3>${escapeHtml(nome)}</h3>
+          <h3>${escapeHtml(ehPessoa ? pdNomesCurto(nome) : nome)}</h3>
           <div class="cell-tag">${ordensDoExecutante.length} OS no dia</div>
         </div>
       </div>
@@ -200,7 +219,7 @@ Views.programacaoDia = {
             <div style="font-size:11px;opacity:.75;margin-bottom:3px;">${Icon('user', 12)} Executante</div>
             <select id="pdFiltroExecutante" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:7px 10px;color:var(--accent-ink);font-size:12.5px;">
               <option value="" style="color:#111;">Todos</option>
-              ${executantesOpts.map(e => `<option value="${escapeHtml(e)}" style="color:#111;" ${_pdFiltro.executante === e ? 'selected' : ''}>${escapeHtml(e)}</option>`).join('')}
+              ${executantesOpts.map(e => `<option value="${escapeHtml(e)}" style="color:#111;" ${_pdFiltro.executante === e ? 'selected' : ''}>${escapeHtml(pdNomesCurto(e))}</option>`).join('')}
             </select>
           </div>
         </div>
@@ -251,7 +270,7 @@ Views.programacaoDia = {
 
       <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;margin-bottom:20px;">
         ${gruposExibidos.length
-          ? gruposExibidos.map(nome => pdRenderCardExecutante(nome, porGrupo[nome])).join('')
+          ? gruposExibidos.map(nome => pdRenderCardExecutante(nome, porGrupo[nome], !agruparPorOficina)).join('')
           : `<div class="empty">${Icon('clipboard', 30)}<span>Nenhuma OS encontrada para os filtros aplicados.</span></div>`}
       </div>
 
