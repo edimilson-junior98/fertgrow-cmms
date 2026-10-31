@@ -222,19 +222,30 @@ const MelvinSync = (function () {
     return 'Preventiva';
   }
 
-  // Deriva o nome do executante (pessoa) com a prioridade pedida: recurso
-  // UTILIZADO (mão de obra que de fato apontou/rodou a OS) > apontamento de
-  // horas > recurso PLANEJADO (só a intenção, pode ser só a oficina) > vazio.
+  // Deriva o(s) nome(s) do(s) executante(s) (pessoa) com a prioridade pedida:
+  // recurso UTILIZADO (mão de obra que de fato apontou/rodou a OS) + apontamento
+  // de horas > recurso PLANEJADO (só a intenção, pode ser só a oficina) > vazio.
+  // Uma OS pode ter mais de uma pessoa (vários RecursosUtilizados Tipo=MaoObra
+  // e/ou vários ApontamentosHoras) — antes isso pegava só a primeira (`.find()`
+  // e `[0]`), escondendo o resto da equipe no mural/Programação do Dia. Agora
+  // junta todos os nomes distintos encontrados em cada nível de prioridade.
   // Fica vazio mesmo quando a OS só tem oficina/centro de trabalho planejado,
   // sem nome de pessoa — ver nota no relatório final sobre essa limitação.
   function derivarExecutanteIntegracao(os) {
-    const utilizado = (os.RecursosUtilizados || []).find(r => r.Tipo === 'MaoObra');
-    if (utilizado && utilizado.Descricao) return utilizado.Descricao;
-    const apontamento = (os.ApontamentosHoras || [])[0];
-    if (apontamento && apontamento.Funcionario) return apontamento.Funcionario;
-    const planejado = (os.RecursosPlanejados || []).find(r => r.Tipo === 'MaoObra');
-    if (planejado && planejado.Descricao) return planejado.Descricao;
-    return '';
+    const nomes = new Set();
+    (os.RecursosUtilizados || []).forEach((r) => {
+      if (r.Tipo === 'MaoObra' && r.Descricao) nomes.add(r.Descricao.trim());
+    });
+    (os.ApontamentosHoras || []).forEach((a) => {
+      if (a.Funcionario) nomes.add(a.Funcionario.trim());
+    });
+    if (nomes.size) return [...nomes].join(', ');
+
+    const planejados = new Set();
+    (os.RecursosPlanejados || []).forEach((r) => {
+      if (r.Tipo === 'MaoObra' && r.Descricao) planejados.add(r.Descricao.trim());
+    });
+    return [...planejados].join(', ');
   }
 
   // A API de integração (GetDadosIntegracao) às vezes manda Oficina vazia
@@ -259,7 +270,14 @@ const MelvinSync = (function () {
     // ativo (`TagAtivo`) contra `ativos.tag`, já preenchida pela
     // sincronização de Ativos.
     const ativoMatch = os.TagAtivo ? Store.all('ativos').find(a => a.tag === os.TagAtivo) : null;
-    const dataProgramada = ((os.DatasProgramacao && os.DatasProgramacao[0]) || os.DataAbertura || '').slice(0, 10);
+    // Quando a OS é reprogramada (muda de dia na Melvin), `DatasProgramacao`
+    // acumula uma entrada por programação feita — pegar a entrada [0] (a
+    // primeira) mantinha a data ORIGINAL mesmo depois de reprogramada, fazendo
+    // a OS sumir do dia certo e aparecer presa num dia antigo (bug confirmado
+    // na OS 907: reprogramada pra hoje na Melvin, mas o mural mostrava o dia
+    // antigo). A última entrada do array é a programação mais recente.
+    const datas = os.DatasProgramacao || [];
+    const dataProgramada = (datas[datas.length - 1] || os.DataAbertura || '').slice(0, 10);
     const oficina = oficinaComFallback(os);
 
     const dados = {
