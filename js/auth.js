@@ -162,7 +162,7 @@ function authOcultarTelaLogin() {
 function authRenderAguardando(mensagem) {
   authMostrarTelaLogin(`
     <div class="card" style="padding:28px;text-align:center;">
-      <div style="width:48px;height:48px;border-radius:12px;background:#fff;padding:6px;margin:0 auto 16px;"><img src="assets/logo-icon.png" style="width:100%;height:100%;object-fit:contain;"></div>
+      <div style="width:48px;height:48px;margin:0 auto 16px;"><img src="assets/logo-icon.png" style="width:100%;height:100%;object-fit:contain;"></div>
       <div style="font-weight:700;font-size:15px;margin-bottom:8px;">Acesso pendente</div>
       <p class="text-muted" style="font-size:13px;margin-bottom:18px;">${mensagem}</p>
       <button class="btn" id="authSairAguardando">Sair</button>
@@ -174,7 +174,7 @@ function authRenderLogin() {
   authMostrarTelaLogin(`
     <div class="card" style="padding:28px;">
       <div style="text-align:center;margin-bottom:20px;">
-        <div style="width:48px;height:48px;border-radius:12px;background:#fff;padding:6px;margin:0 auto 12px;"><img src="assets/logo-icon.png" style="width:100%;height:100%;object-fit:contain;"></div>
+        <div style="width:48px;height:48px;margin:0 auto 12px;"><img src="assets/logo-icon.png" style="width:100%;height:100%;object-fit:contain;"></div>
         <div style="font-weight:700;font-size:17px;">FertGrow CMMS</div>
         <div class="text-muted" style="font-size:12px;">Entre com sua conta para continuar</div>
       </div>
