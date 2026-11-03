@@ -1,15 +1,27 @@
 /* ==========================================================================
    FertGrow CMMS — Sincronização em Nuvem (Supabase)
    Permite que várias pessoas, em computadores diferentes, compartilhem os
-   mesmos dados em tempo real, usando uma única tabela no Supabase como
-   "espelho" do banco local (mesmo formato usado no Backup/Restauração).
+   mesmos dados em tempo real.
+
+   O banco local (js/store.js) é um objeto só, com várias coleções dentro
+   (ativos, ordens, estoque, etc.). Só que gravar ESSE objeto inteiro como um
+   JSON gigante numa linha só (como era antes, tabela fertgrow_db/id=1) parou
+   de funcionar: o blob passou de 4MB e o Postgres passou a recusar o UPDATE
+   com "canceling statement due to statement timeout" — ou seja, NENHUMA
+   alteração de ninguém estava mais sendo salva na nuvem.
+
+   Agora cada coleção vira sua própria linha na tabela fertgrow_collections
+   (id = nome da coleção, data = o array/objeto dela). Uma alteração em
+   "ordens" só reescreve a linha de ordens, não o banco inteiro — e o
+   Realtime também notifica por linha, então o payload de cada notificação
+   também é só aquela coleção, não o blob todo.
+
    Sem configuração, o sistema continua funcionando 100% localmente.
    ========================================================================== */
 
 const SYNC_CONFIG_KEY = 'fertgrow_sync_config_v1';
 const SYNC_LOCAL_CHANGE_KEY = 'fertgrow_last_local_change';
-const SYNC_TABLE = 'fertgrow_db';
-const SYNC_ROW_ID = 1;
+const SYNC_COLLECTIONS_TABLE = 'fertgrow_collections';
 const SYNC_CONFIG_PADRAO = {
   url: 'https://woabzpjzjkaqkjmzsiqj.supabase.co',
   anonKey: 'sb_publishable_kAbXzgAybK885fnyV2-7kQ_6B623rg7',
@@ -19,28 +31,21 @@ const SYNC_CONFIG_PADRAO = {
 let _syncClient = null;
 let _syncChannel = null;
 let _syncAplicandoRemoto = false;
-let _syncUltimoEnviadoJSON = null;
 let _syncDebounceTimer = null;
+// Último JSON de cada coleção que já foi enviado pra nuvem (por nós) ou
+// recebido de lá (aplicado aqui) — usado tanto pra saber o que mudou e
+// precisa ser reenviado, quanto pra não reagir a uma notificação em tempo
+// real que fomos nós mesmos que geramos.
+let _syncColEnviado = {};
 
 // Espelho de mão única (CMMS -> Supabase) de db.estoque numa tabela com colunas
 // de verdade, para que outro site possa consultar o estoque via REST sem
-// precisar baixar/parsear o blob inteiro de fertgrow_db. Não sincroniza de
-// volta para o CMMS — é só escrita.
+// precisar baixar/parsear o blob inteiro. Não sincroniza de volta para o
+// CMMS — é só escrita.
 const SYNC_ESTOQUE_TABLE = 'estoque';
 let _syncEstoqueIdsRemotos = null;
 let _syncEstoqueUltimoEnviadoJSON = null;
 let _syncEstoqueDebounceTimer = null;
-
-// O blob inteiro de fertgrow_db já passa de 4MB — grande demais pro Realtime
-// do Supabase entregar a notificação de UPDATE inline (ele chega sem o campo
-// "data" e o código cai no fallback de rebuscar tudo), e grande demais pra
-// baixar rápido numa conexão fraca. Isso fazia um pedido novo (ex: Solicitação
-// de Almoxarifado vinda do Controle de Ferramentas) demorar demais pra
-// aparecer aqui. Em vez de esperar o blob inteiro, busca periodicamente só o
-// campo solicitacoesCompra (poucos KB, via JSON path do PostgREST) e mescla
-// qualquer item novo que ainda não exista localmente.
-const SYNC_SOLICITACOES_POLL_MS = 15 * 1000;
-let _syncSolicitacoesPollTimer = null;
 
 function syncGetConfig() {
   try {
@@ -72,26 +77,30 @@ function syncUltimaAlteracaoLocal() {
   return Number(localStorage.getItem(SYNC_LOCAL_CHANGE_KEY) || 0);
 }
 
-// Conecta pela primeira vez: testa a chave, garante que a linha compartilhada
-// exista (criando com os dados locais atuais se ainda não existir, ou
-// trazendo os dados já existentes se alguém já configurou antes).
+// Conecta pela primeira vez: testa a chave, garante que as coleções
+// compartilhadas existam (criando com os dados locais atuais se o projeto
+// ainda estiver vazio, ou trazendo os dados já existentes se alguém já
+// configurou antes).
 async function syncConectar(url, anonKey) {
   if (typeof supabase === 'undefined') throw new Error('Biblioteca do Supabase não carregou. Verifique sua internet e tente novamente.');
   const client = supabase.createClient(url, anonKey);
 
-  const { data, error } = await client.from(SYNC_TABLE).select('data').eq('id', SYNC_ROW_ID).maybeSingle();
+  const { data: linhas, error } = await client.from(SYNC_COLLECTIONS_TABLE).select('id, data');
   if (error) throw error;
 
-  if (!data) {
+  if (!linhas || !linhas.length) {
     const dbAtual = JSON.parse(Store.exportarBackup());
-    const { error: insertError } = await client.from(SYNC_TABLE).insert({ id: SYNC_ROW_ID, data: dbAtual });
+    const linhasNovas = Object.keys(dbAtual).map((chave) => ({ id: chave, data: dbAtual[chave] }));
+    const { error: insertError } = await client.from(SYNC_COLLECTIONS_TABLE).insert(linhasNovas);
     if (insertError) throw insertError;
-    _syncUltimoEnviadoJSON = JSON.stringify(dbAtual);
+    linhasNovas.forEach((l) => { _syncColEnviado[l.id] = JSON.stringify(l.data); });
   } else {
+    const dbRemoto = {};
+    linhas.forEach((l) => { dbRemoto[l.id] = l.data; });
     _syncAplicandoRemoto = true;
-    Store.substituirDb(data.data);
+    Store.substituirDb(dbRemoto);
     _syncAplicandoRemoto = false;
-    _syncUltimoEnviadoJSON = JSON.stringify(data.data);
+    linhas.forEach((l) => { _syncColEnviado[l.id] = JSON.stringify(l.data); });
   }
 
   syncSalvarConfig({ url, anonKey, ativo: true });
@@ -106,8 +115,7 @@ function syncDesconectar() {
   clearTimeout(_syncEstoqueDebounceTimer);
   _syncEstoqueIdsRemotos = null;
   _syncEstoqueUltimoEnviadoJSON = null;
-  clearInterval(_syncSolicitacoesPollTimer);
-  _syncSolicitacoesPollTimer = null;
+  _syncColEnviado = {};
   _syncClient = null;
 }
 
@@ -147,7 +155,7 @@ function syncEstoqueLinha(item) {
   };
 }
 
-// Ao contrário do envio do blob inteiro, não checa _syncAplicandoRemoto: essa
+// Ao contrário do envio das coleções, não checa _syncAplicandoRemoto: essa
 // tabela não tem escuta em tempo real nem aplica nada de volta no CMMS, então
 // não existe o loop remoto->local->remoto que aquela trava evita ali.
 function syncEstoqueEnviar() {
@@ -195,47 +203,12 @@ async function syncEstoqueIniciar() {
   syncEstoqueEnviar();
 }
 
-// Busca só o campo solicitacoesCompra (não o blob inteiro) e acrescenta ao
-// banco local qualquer item cujo id ainda não exista aqui — nunca sobrescreve
-// nem remove o que já existe (edições feitas aqui, como preencher o número da
-// SC, continuam indo pela sincronização normal/Realtime de sempre).
-async function syncPollNovasSolicitacoesCompra() {
-  if (!_syncClient) return;
-  try {
-    const { data, error } = await _syncClient
-      .from(SYNC_TABLE)
-      .select('solicitacoesCompra:data->solicitacoesCompra')
-      .eq('id', SYNC_ROW_ID)
-      .maybeSingle();
-    if (error || !data || !Array.isArray(data.solicitacoesCompra)) return;
-
-    const idsLocais = new Set(Store.all('solicitacoesCompra').map(s => s.id));
-    const novas = data.solicitacoesCompra.filter(s => s && s.id && !idsLocais.has(s.id));
-    if (!novas.length) return;
-
-    _syncAplicandoRemoto = true;
-    novas.forEach(s => Store.addSilent('solicitacoesCompra', s));
-    Store.persist();
-    _syncUltimoEnviadoJSON = JSON.stringify(JSON.parse(Store.exportarBackup()));
-    if (window.App && App.toast) {
-      App.toast(`${novas.length} nova(s) solicitação(ões) de compra/almoxarifado recebida(s).`, 'info');
-    }
-  } catch (e) {
-    console.warn('Falha ao checar novas solicitações de compra:', e);
-  } finally {
-    _syncAplicandoRemoto = false;
-  }
-}
-
 function syncIniciarCliente() {
   if (_syncClient) return; // já iniciado, evita duplicar assinatura em tempo real
   const config = syncGetConfig();
   if (!config || !config.ativo || typeof supabase === 'undefined') return;
   _syncClient = supabase.createClient(config.url, config.anonKey);
   syncEstoqueIniciar();
-  syncPollNovasSolicitacoesCompra();
-  clearInterval(_syncSolicitacoesPollTimer);
-  _syncSolicitacoesPollTimer = setInterval(syncPollNovasSolicitacoesCompra, SYNC_SOLICITACOES_POLL_MS);
 
   // Busca o estado atual da nuvem já ao conectar — sem isso, ao abrir a página
   // com uma conexão já configurada, o sistema só ficava escutando mudanças
@@ -247,46 +220,61 @@ function syncIniciarCliente() {
   // nuvem foi atualizada (ex: editou algo e fechou antes do envio terminar,
   // ou ficou sem internet), enviamos o local para a nuvem em vez de substituí-lo
   // — um bug anterior aqui já apagou dados reais de um dia de trabalho.
-  _syncClient.from(SYNC_TABLE).select('data, updated_at').eq('id', SYNC_ROW_ID).maybeSingle().then(({ data, error }) => {
-    if (error || !data) { if (error) console.warn('Falha ao buscar dados atuais da nuvem:', error); return; }
-    const novoJSON = JSON.stringify(data.data);
+  _syncClient.from(SYNC_COLLECTIONS_TABLE).select('id, data, updated_at').then(({ data: linhas, error }) => {
+    if (error || !linhas) { if (error) console.warn('Falha ao buscar dados atuais da nuvem:', error); return; }
+
+    const dbRemoto = {};
+    let maxAtualizadoEm = 0;
+    linhas.forEach((l) => {
+      dbRemoto[l.id] = l.data;
+      const t = l.updated_at ? new Date(l.updated_at).getTime() : 0;
+      if (t > maxAtualizadoEm) maxAtualizadoEm = t;
+    });
+
+    const novoJSON = JSON.stringify(dbRemoto);
     const localJSON = JSON.stringify(JSON.parse(Store.exportarBackup()));
-    if (novoJSON === localJSON) { _syncUltimoEnviadoJSON = novoJSON; return; }
+    if (novoJSON === localJSON) {
+      linhas.forEach((l) => { _syncColEnviado[l.id] = JSON.stringify(l.data); });
+      return;
+    }
 
     const alteracaoLocalEm = syncUltimaAlteracaoLocal();
-    const atualizacaoNuvemEm = data.updated_at ? new Date(data.updated_at).getTime() : 0;
-    if (alteracaoLocalEm && alteracaoLocalEm > atualizacaoNuvemEm) {
+    if (alteracaoLocalEm && alteracaoLocalEm > maxAtualizadoEm) {
       console.warn('Dados locais parecem mais recentes que a nuvem — enviando o local em vez de sobrescrever.');
       syncEnviarAlteracoes();
       return;
     }
 
     _syncAplicandoRemoto = true;
-    try { Store.substituirDb(data.data); } catch (e) { console.warn('Falha ao aplicar dados da nuvem:', e); }
+    try { Store.substituirDb(dbRemoto); } catch (e) { console.warn('Falha ao aplicar dados da nuvem:', e); }
     _syncAplicandoRemoto = false;
-    _syncUltimoEnviadoJSON = novoJSON;
+    linhas.forEach((l) => { _syncColEnviado[l.id] = JSON.stringify(l.data); });
   });
 
   _syncChannel = _syncClient
-    .channel('fertgrow-db-changes')
-    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: SYNC_TABLE, filter: `id=eq.${SYNC_ROW_ID}` }, async (payload) => {
-      // Importante: tudo aqui roda protegido por try/catch/finally. Um banco muito
-      // grande pode fazer o Realtime entregar a notificação sem o campo "data"
-      // (limite de tamanho do payload) — sem essa proteção, um erro aqui deixava
-      // a trava "_syncAplicandoRemoto" presa em true para sempre, e o navegador
-      // parava de enviar qualquer alteração nova para a nuvem, silenciosamente.
+    .channel('fertgrow-collections-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: SYNC_COLLECTIONS_TABLE }, async (payload) => {
+      // Importante: tudo aqui roda protegido por try/catch/finally. Uma coleção
+      // grande (estoque, ordens...) pode fazer o Realtime entregar a notificação
+      // sem o campo "data" (limite de tamanho do payload) — sem essa proteção,
+      // um erro aqui deixava a trava "_syncAplicandoRemoto" presa em true para
+      // sempre, e o navegador parava de enviar qualquer alteração nova, silenciosamente.
       try {
-        let novoDb = payload.new && payload.new.data;
-        if (!novoDb) {
-          const { data, error } = await _syncClient.from(SYNC_TABLE).select('data').eq('id', SYNC_ROW_ID).maybeSingle();
-          if (error || !data) { console.warn('Notificação em tempo real veio incompleta e não foi possível buscar a versão completa:', error); return; }
-          novoDb = data.data;
+        const linha = payload.new;
+        if (!linha || !linha.id) return;
+        let novoValor = linha.data;
+        if (novoValor === undefined) {
+          const { data, error } = await _syncClient.from(SYNC_COLLECTIONS_TABLE).select('data').eq('id', linha.id).maybeSingle();
+          if (error || !data) { console.warn('Notificação em tempo real veio incompleta e não foi possível buscar a coleção:', linha.id, error); return; }
+          novoValor = data.data;
         }
-        const novoJSON = JSON.stringify(novoDb);
-        if (novoJSON === _syncUltimoEnviadoJSON) return; // fomos nós mesmos que enviamos
+        const novoJSON = JSON.stringify(novoValor);
+        if (novoJSON === _syncColEnviado[linha.id]) return; // fomos nós mesmos que enviamos
         _syncAplicandoRemoto = true;
-        Store.substituirDb(novoDb);
-        _syncUltimoEnviadoJSON = novoJSON;
+        const dbAtual = JSON.parse(Store.exportarBackup());
+        dbAtual[linha.id] = novoValor;
+        Store.substituirDb(dbAtual);
+        _syncColEnviado[linha.id] = novoJSON;
         if (window.App && App.toast) App.toast('Dados atualizados por outro usuário.', 'info');
       } catch (e) {
         console.warn('Falha ao aplicar atualização remota:', e);
@@ -305,11 +293,19 @@ function syncEnviarAlteracoes() {
   clearTimeout(_syncDebounceTimer);
   _syncDebounceTimer = setTimeout(async () => {
     const dbAtual = JSON.parse(Store.exportarBackup());
-    const json = JSON.stringify(dbAtual);
-    if (json === _syncUltimoEnviadoJSON) return;
-    _syncUltimoEnviadoJSON = json;
+    const agora = new Date().toISOString();
+    const mudancas = [];
+    Object.keys(dbAtual).forEach((chave) => {
+      const json = JSON.stringify(dbAtual[chave]);
+      if (json !== _syncColEnviado[chave]) mudancas.push({ id: chave, data: dbAtual[chave], updated_at: agora, _json: json });
+    });
+    if (!mudancas.length) return;
     try {
-      await _syncClient.from(SYNC_TABLE).update({ data: dbAtual, updated_at: new Date().toISOString() }).eq('id', SYNC_ROW_ID);
+      const { error } = await _syncClient
+        .from(SYNC_COLLECTIONS_TABLE)
+        .upsert(mudancas.map(({ id, data, updated_at }) => ({ id, data, updated_at })), { onConflict: 'id' });
+      if (error) throw error;
+      mudancas.forEach((m) => { _syncColEnviado[m.id] = m._json; });
     } catch (e) {
       console.warn('Falha ao sincronizar com a nuvem:', e);
     }
