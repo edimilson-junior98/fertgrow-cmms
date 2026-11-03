@@ -31,6 +31,17 @@ let _syncEstoqueIdsRemotos = null;
 let _syncEstoqueUltimoEnviadoJSON = null;
 let _syncEstoqueDebounceTimer = null;
 
+// O blob inteiro de fertgrow_db já passa de 4MB — grande demais pro Realtime
+// do Supabase entregar a notificação de UPDATE inline (ele chega sem o campo
+// "data" e o código cai no fallback de rebuscar tudo), e grande demais pra
+// baixar rápido numa conexão fraca. Isso fazia um pedido novo (ex: Solicitação
+// de Almoxarifado vinda do Controle de Ferramentas) demorar demais pra
+// aparecer aqui. Em vez de esperar o blob inteiro, busca periodicamente só o
+// campo solicitacoesCompra (poucos KB, via JSON path do PostgREST) e mescla
+// qualquer item novo que ainda não exista localmente.
+const SYNC_SOLICITACOES_POLL_MS = 15 * 1000;
+let _syncSolicitacoesPollTimer = null;
+
 function syncGetConfig() {
   try {
     const raw = localStorage.getItem(SYNC_CONFIG_KEY);
@@ -95,6 +106,8 @@ function syncDesconectar() {
   clearTimeout(_syncEstoqueDebounceTimer);
   _syncEstoqueIdsRemotos = null;
   _syncEstoqueUltimoEnviadoJSON = null;
+  clearInterval(_syncSolicitacoesPollTimer);
+  _syncSolicitacoesPollTimer = null;
   _syncClient = null;
 }
 
@@ -182,12 +195,47 @@ async function syncEstoqueIniciar() {
   syncEstoqueEnviar();
 }
 
+// Busca só o campo solicitacoesCompra (não o blob inteiro) e acrescenta ao
+// banco local qualquer item cujo id ainda não exista aqui — nunca sobrescreve
+// nem remove o que já existe (edições feitas aqui, como preencher o número da
+// SC, continuam indo pela sincronização normal/Realtime de sempre).
+async function syncPollNovasSolicitacoesCompra() {
+  if (!_syncClient) return;
+  try {
+    const { data, error } = await _syncClient
+      .from(SYNC_TABLE)
+      .select('solicitacoesCompra:data->solicitacoesCompra')
+      .eq('id', SYNC_ROW_ID)
+      .maybeSingle();
+    if (error || !data || !Array.isArray(data.solicitacoesCompra)) return;
+
+    const idsLocais = new Set(Store.all('solicitacoesCompra').map(s => s.id));
+    const novas = data.solicitacoesCompra.filter(s => s && s.id && !idsLocais.has(s.id));
+    if (!novas.length) return;
+
+    _syncAplicandoRemoto = true;
+    novas.forEach(s => Store.addSilent('solicitacoesCompra', s));
+    Store.persist();
+    _syncUltimoEnviadoJSON = JSON.stringify(JSON.parse(Store.exportarBackup()));
+    if (window.App && App.toast) {
+      App.toast(`${novas.length} nova(s) solicitação(ões) de compra/almoxarifado recebida(s).`, 'info');
+    }
+  } catch (e) {
+    console.warn('Falha ao checar novas solicitações de compra:', e);
+  } finally {
+    _syncAplicandoRemoto = false;
+  }
+}
+
 function syncIniciarCliente() {
   if (_syncClient) return; // já iniciado, evita duplicar assinatura em tempo real
   const config = syncGetConfig();
   if (!config || !config.ativo || typeof supabase === 'undefined') return;
   _syncClient = supabase.createClient(config.url, config.anonKey);
   syncEstoqueIniciar();
+  syncPollNovasSolicitacoesCompra();
+  clearInterval(_syncSolicitacoesPollTimer);
+  _syncSolicitacoesPollTimer = setInterval(syncPollNovasSolicitacoesCompra, SYNC_SOLICITACOES_POLL_MS);
 
   // Busca o estado atual da nuvem já ao conectar — sem isso, ao abrir a página
   // com uma conexão já configurada, o sistema só ficava escutando mudanças
