@@ -332,6 +332,16 @@ input[type="checkbox"]{accent-color:var(--accent);width:15px;height:15px;cursor:
 .field-span-3{grid-column:span 3;}
 @media(max-width:640px){.field-span-3{grid-column:span 1;}}
 
+/* =========================== BOOT SPLASH =========================== */
+.boot-splash{
+  position:fixed;inset:0;z-index:200;background:var(--bg);
+  display:flex;align-items:center;justify-content:center;
+  transition:opacity .25s ease;
+}
+.boot-splash.hidden{opacity:0;pointer-events:none;}
+.boot-splash img{width:72px;height:72px;object-fit:contain;animation:bootSpin 1.1s linear infinite;}
+@keyframes bootSpin{from{transform:rotate(0)} to{transform:rotate(360deg)}}
+
 /* =========================== MODAL =========================== */
 .modal-overlay{
   position:fixed;inset:0;background:rgba(5,7,11,.65);backdrop-filter:blur(2px);

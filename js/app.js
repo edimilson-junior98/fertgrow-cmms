@@ -10,6 +10,7 @@ const App = (() => {
   let currentView = 'dashboard';
 
   function init() {
+    ocultarBootSplash();
     renderIcons();
     bindNav();
     bindTopbar();

@@ -131,7 +131,19 @@ function authMontarTopbarUsuario() {
 
 /* --------------------------- Telas de bloqueio --------------------------- */
 
+// A logo girando ocupa a tela inteira assim que o HTML carrega (antes até
+// do CSS/fontes/Chart.js terminarem de baixar) — unica forma de nao deixar a
+// pagina em branco enquanto isso carrega. Some tanto quando o app normal
+// inicia (App.init) quanto quando a tela de login/aguardando aparece.
+function ocultarBootSplash() {
+  const el = document.getElementById('bootSplash');
+  if (!el) return;
+  el.classList.add('hidden');
+  setTimeout(() => el.remove(), 300);
+}
+
 function authMostrarTelaLogin(html) {
+  ocultarBootSplash();
   document.getElementById('app').classList.add('hidden');
   const el = document.getElementById('authScreen');
   el.classList.remove('hidden');
