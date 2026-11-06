@@ -10,6 +10,17 @@ let _arvoreSel = { tipo: 'raiz', id: null }; // 'raiz' | 'pasta' | 'bem'
 let _pastasExpandidas = new Set();
 let _arvoreDestaqueId = null;
 
+// Avisa, direto na lista/árvore de Ativos, que este bem tem um Motorredutor
+// (Motor + Redutor pareados — ver motorParPareado em js/motores.js) instalado,
+// sem precisar abrir Controle de Motores pra descobrir.
+function ativoTemMotorredutor(ativoId) {
+  if (!ativoId) return false;
+  return Store.all('motores').some(m => m.ativoId === ativoId && motorParPareado(m));
+}
+function seloMotorredutor(ativoId) {
+  return ativoTemMotorredutor(ativoId) ? `<span title="Possui motorredutor instalado" style="color:var(--warning);display:inline-flex;vertical-align:middle;">${Icon('bolt', 13)}</span>` : '';
+}
+
 Views.ativos = {
   title: 'Ativos',
   render() {
@@ -148,7 +159,7 @@ function renderBemNode(bem, depth) {
     <div class="tree-node">
       <div class="tree-row ${_arvoreSel.tipo==='bem' && _arvoreSel.id===bem.id?'active':''}" style="padding-left:${8+depth*11}px" data-tree-bem="${bem.id}">
         <span class="tree-toggle" data-toggle-pasta="${chaveExp}">${filhos.length ? (expandida?'▾':'▸') : ''}</span>
-        ${Icon(icone,13)}<span class="tree-label">${bem.nome}</span>
+        ${Icon(icone,13)}<span class="tree-label">${bem.nome}</span> ${seloMotorredutor(bem.id)}
         ${filhos.length ? `<span class="tree-count">${filhos.length}</span>` : ''}
         <span class="tree-action" data-view-bem="${bem.id}" title="Ver detalhes">${Icon('eye',12)}</span>
         <span class="tree-action" data-dup-bem="${bem.id}" title="Duplicar bem">${Icon('package',12)}</span>
@@ -360,7 +371,7 @@ function renderPainelGrupo() {
             <tr>
               <td class="cell-tag">${a.tag}</td>
               <td class="cell-tag">${a.codigoAtivo || '—'}</td>
-              <td><strong>${a.nome}</strong><div class="cell-tag">${a.fabricante || '—'} · ${a.modelo || '—'}</div></td>
+              <td><strong>${a.nome}</strong> ${seloMotorredutor(a.id)}<div class="cell-tag">${a.fabricante || '—'} · ${a.modelo || '—'}</div></td>
               <td>${a.familia || '—'}</td>
               <td class="cell-tag">${a.pastaId ? Store.caminhoPasta(a.pastaId) : '— raiz —'}</td>
               <td>${a.area}</td>
@@ -455,7 +466,7 @@ function renderPainelBem(bemId) {
     <div class="view-head">
       <div>
         <div class="cell-tag" style="margin-bottom:6px;">${caminhoCompletoBem(bem.id)}</div>
-        <h1>${bem.nome}</h1>
+        <h1>${bem.nome} ${seloMotorredutor(bem.id)}</h1>
         <div class="sub">${Icon('grid',11)} ${tagHierarquica(bem.id)} · ${filhos.length} sub-bem(ns) cadastrado(s)</div>
       </div>
       <div class="view-actions">
