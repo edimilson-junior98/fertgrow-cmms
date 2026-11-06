@@ -380,12 +380,13 @@ Views.motores = {
               // separou os dois), motorParPareado() olha o cadastro inteiro — se `m`
               // de fato tem par, avisa aqui que ele pertence a um conjunto Motorredutor.
               const parceiro = motorParPareado(m);
-              const tagParceiro = parceiro ? (m.tipo === 'Redutor' ? parceiro.motor.tag : parceiro.redutor.tag) : null;
+              const parceiroRec = parceiro ? (parceiro.motor.id === m.id ? parceiro.redutor : parceiro.motor) : null;
+              const tagParceiro = parceiroRec ? parceiroRec.tag : null;
               return `
               <tr>
                 <td class="cell-tag">${m.tag}</td>
                 <td class="cell-tag">${m.codigoInterno || '—'}</td>
-                <td><span class="badge badge-${badgeTipo(m.tipo)}">${m.tipo || 'Motor'}</span>${tagParceiro ? ` <span class="badge badge-success" title="Faz parte de um conjunto Motorredutor com ${tagParceiro} — escondido pelo filtro atual">${Icon('layers',11)} Conjunto</span>` : ''}</td>
+                <td><span class="badge badge-${badgeTipo(m.tipo)}" data-view-motor="${m.id}" style="cursor:pointer;" title="Ver dados de ${m.tag}">${m.tipo || 'Motor'}</span>${parceiroRec ? ` <span class="badge badge-${badgeTipo(parceiroRec.tipo)}" data-view-motor="${parceiroRec.id}" style="cursor:pointer;" title="Ver dados de ${parceiroRec.tag} (parceiro do conjunto, escondido pelo filtro atual)">${parceiroRec.tipo || 'Motor'}</span>` : ''}</td>
                 <td>${motorAtivoNome(m)}</td>
                 <td>${motorSetorNome(m) || '—'}</td>
                 <td>${m.fabricante} · ${m.modelo}</td>
