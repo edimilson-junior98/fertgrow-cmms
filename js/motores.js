@@ -386,7 +386,13 @@ Views.motores = {
               <tr>
                 <td class="cell-tag">${m.tag}</td>
                 <td class="cell-tag">${m.codigoInterno || '—'}</td>
-                <td><span class="badge badge-${badgeTipo(m.tipo)}" data-view-motor="${m.id}" style="cursor:pointer;" title="Ver dados de ${m.tag}">${m.tipo || 'Motor'}</span>${parceiroRec ? ` <span class="badge badge-${badgeTipo(parceiroRec.tipo)}" data-view-motor="${parceiroRec.id}" style="cursor:pointer;" title="Ver dados de ${parceiroRec.tag} (parceiro do conjunto, escondido pelo filtro atual)">${parceiroRec.tipo || 'Motor'}</span>` : ''}</td>
+                <td>
+                  <div style="display:flex;gap:4px;flex-wrap:nowrap;">
+                    <span class="badge badge-${badgeTipo(m.tipo)}" data-view-motor="${m.id}" style="cursor:pointer;" title="Ver dados de ${m.tag}">${m.tipo || 'Motor'}</span>
+                    ${parceiroRec ? `<span class="badge badge-${badgeTipo(parceiroRec.tipo)}" data-view-motor="${parceiroRec.id}" style="cursor:pointer;" title="Ver dados de ${parceiroRec.tag} (parceiro do conjunto, escondido pelo filtro atual)">${parceiroRec.tipo || 'Motor'}</span>` : ''}
+                  </div>
+                  ${parceiroRec ? `<div style="margin-top:4px;"><span class="badge badge-success" title="Faz parte de um conjunto Motorredutor com ${tagParceiro} — escondido pelo filtro atual">${Icon('layers',11)} Conjunto</span></div>` : ''}
+                </td>
                 <td>${motorAtivoNome(m)}</td>
                 <td>${motorSetorNome(m) || '—'}</td>
                 <td>${m.fabricante} · ${m.modelo}</td>
