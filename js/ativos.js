@@ -10,15 +10,22 @@ let _arvoreSel = { tipo: 'raiz', id: null }; // 'raiz' | 'pasta' | 'bem'
 let _pastasExpandidas = new Set();
 let _arvoreDestaqueId = null;
 
-// Avisa, direto na lista/árvore de Ativos, que este bem tem um Motorredutor
-// (Motor + Redutor pareados — ver motorParPareado em js/motores.js) instalado,
-// sem precisar abrir Controle de Motores pra descobrir.
-function ativoTemMotorredutor(ativoId) {
-  if (!ativoId) return false;
-  return Store.all('motores').some(m => m.ativoId === ativoId && motorParPareado(m));
+// Avisa, direto na lista/árvore de Ativos, que este bem tem motor cadastrado
+// em Controle de Motores — pareado como Motorredutor (Motor + Redutor, ver
+// motorParPareado em js/motores.js) ou um Motor direto, sem redutor (ex:
+// Moinhos, que são acionamento direto) — sem precisar abrir Controle de
+// Motores pra descobrir.
+function motorDoAtivo(ativoId) {
+  if (!ativoId) return null;
+  const vinculados = Store.all('motores').filter(m => m.ativoId === ativoId);
+  if (!vinculados.length) return null;
+  return { pareado: vinculados.some(m => motorParPareado(m)) };
 }
 function seloMotorredutor(ativoId) {
-  return ativoTemMotorredutor(ativoId) ? `<span data-ir-motores="${ativoId}" title="Possui motorredutor instalado — clique para ver em Controle de Motores" style="color:var(--warning);display:inline-flex;vertical-align:middle;cursor:pointer;">${Icon('bolt', 13)}</span>` : '';
+  const info = motorDoAtivo(ativoId);
+  if (!info) return '';
+  const titulo = info.pareado ? 'Possui motorredutor instalado' : 'Possui motor instalado (acionamento direto)';
+  return `<span data-ir-motores="${ativoId}" title="${titulo} — clique para ver em Controle de Motores" style="color:var(--warning);display:inline-flex;vertical-align:middle;cursor:pointer;">${Icon('bolt', 13)}</span>`;
 }
 
 // Clique no selo de raio leva direto pra Controle de Motores já filtrado
