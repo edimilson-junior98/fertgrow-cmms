@@ -402,7 +402,7 @@ Views.motores = {
                   <button class="btn btn-sm" data-dup-motor="${m.id}" title="Duplicar">${Icon('package',14)}</button>
                   <button class="btn btn-sm" data-swap-motor="${m.id}" title="Trocar status">${Icon('refresh',14)}</button>
                   <button class="btn btn-sm" data-mover-motor="${m.id}" title="Mover para outro equipamento">${Icon('arrow-right',14)}</button>
-                  ${!parceiro ? `<button class="btn btn-sm" data-montar-conjunto="${m.id}" title="Montar Conjunto Motorredutor">${Icon('layers',14)}</button>` : ''}
+                  ${parceiro ? `<button class="btn btn-sm" data-ver-conjunto="${parceiro.motor.id}:${parceiro.redutor.id}" title="Ver Motor e Redutor (conjunto com ${tagParceiro}, mesmo escondido pelo filtro atual)">${Icon('layers',14)}</button>` : `<button class="btn btn-sm" data-montar-conjunto="${m.id}" title="Montar Conjunto Motorredutor">${Icon('layers',14)}</button>`}
                   <button class="btn btn-sm btn-danger" data-del-motor="${m.id}" title="Excluir">${Icon('trash',14)}</button>
                 </div></td>
               </tr>`; }).join('') || `<tr><td colspan="13"><div class="empty">${Icon('bolt',30)}<span>${motoresTodos.length ? 'Nenhum motor encontrado com os filtros atuais.' : 'Nenhum motor cadastrado.'}</span></div></td></tr>`}
