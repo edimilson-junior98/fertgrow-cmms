@@ -18,7 +18,23 @@ function ativoTemMotorredutor(ativoId) {
   return Store.all('motores').some(m => m.ativoId === ativoId && motorParPareado(m));
 }
 function seloMotorredutor(ativoId) {
-  return ativoTemMotorredutor(ativoId) ? `<span title="Possui motorredutor instalado" style="color:var(--warning);display:inline-flex;vertical-align:middle;">${Icon('bolt', 13)}</span>` : '';
+  return ativoTemMotorredutor(ativoId) ? `<span data-ir-motores="${ativoId}" title="Possui motorredutor instalado — clique para ver em Controle de Motores" style="color:var(--warning);display:inline-flex;vertical-align:middle;cursor:pointer;">${Icon('bolt', 13)}</span>` : '';
+}
+
+// Clique no selo de raio leva direto pra Controle de Motores já filtrado
+// pelo Equipamento deste ativo (mesmo filtro rápido usado em motores.js).
+function irParaMotoresDoAtivo(ativoId) {
+  const nome = Store.ativoNome(ativoId);
+  _motFiltros = nome ? { equipamento: new Set([nome]) } : {};
+  _motOrdenacao = null;
+  salvarFiltrosMotores();
+  App.navigate('motores', true);
+}
+function bindSelosMotorredutor() {
+  document.querySelectorAll('[data-ir-motores]').forEach(el => el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    irParaMotoresDoAtivo(el.dataset.irMotores);
+  }));
 }
 
 Views.ativos = {
@@ -41,6 +57,7 @@ Views.ativos = {
     bindBuscaArvore();
     bindArvoreEvents();
     bindPainelPrincipalEvents();
+    bindSelosMotorredutor();
     if (_arvoreDestaqueId) {
       const alvo = document.querySelector(`[data-tree-pasta="${_arvoreDestaqueId}"], [data-tree-bem="${_arvoreDestaqueId}"]`);
       if (alvo) { alvo.scrollIntoView({ block: 'center' }); alvo.classList.add('tree-flash'); }
