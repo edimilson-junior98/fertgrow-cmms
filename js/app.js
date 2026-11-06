@@ -142,7 +142,6 @@ const App = (() => {
       overlay.querySelector('.modal').appendChild(foot);
     }
     overlay.querySelector('.modal-close').addEventListener('click', closeModal);
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
     document.body.appendChild(overlay);
     renderIcons(overlay);
     document.body.style.overflow = 'hidden';
